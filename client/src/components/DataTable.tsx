@@ -9,6 +9,7 @@ interface ArbitrationCase {
   arbitratorName: string | null;
   claimantName: string | null;
   respondentName: string | null;
+  consumerAttorney: string | null;
   filingDate: string | null;
   disposition: string | null;
   awardAmount: string | null;
@@ -107,8 +108,9 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       
       // Convert data to CSV
       const headers = [
-        'Case ID', 'Forum', 'Arbitrator Name', 'Claimant', 
-        'Respondent', 'Filing Date', 'Disposition', 'Award Amount', 'Status'
+        'Case ID', 'Forum', 'Arbitrator Name', 'Consumer', 
+        'Consumer Attorney', 'Respondent', 'Filing Date', 
+        'Disposition', 'Award Amount', 'Status'
       ];
       
       const rows = data.data.map((c: ArbitrationCase) => [
@@ -116,6 +118,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         c.forum,
         c.arbitratorName || '',
         c.claimantName || '',
+        c.consumerAttorney || '',
         c.respondentName || '',
         c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
         c.disposition || '',
@@ -326,7 +329,8 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Case ID</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Forum</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Arbitrator Name</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Claimant</th>
+              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer</th>
+              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer Attorney</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Respondent</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Filing Date</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Disposition</th>
@@ -337,11 +341,11 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={9} className="p-4 text-center text-neutral-400">Loading data...</td>
+                <td colSpan={10} className="p-4 text-center text-neutral-400">Loading data...</td>
               </tr>
             ) : cases.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-4 text-center text-neutral-400">
+                <td colSpan={10} className="p-4 text-center text-neutral-400">
                   {filter ? "No matching records found" : "No data available. Upload Excel files to get started."}
                 </td>
               </tr>
@@ -352,6 +356,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                   <td className="p-2 text-neutral-500">{arbitrationCase.forum}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.arbitratorName || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.claimantName || ''}</td>
+                  <td className="p-2 text-neutral-500">{arbitrationCase.consumerAttorney || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.respondentName || ''}</td>
                   <td className="p-2 text-neutral-500">{formatDate(arbitrationCase.filingDate)}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.disposition || ''}</td>
