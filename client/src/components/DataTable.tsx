@@ -167,43 +167,10 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numericValue);
   };
   
-  // Get row class based on status
-  const getRowClass = (arbitrationCase: ArbitrationCase) => {
-    if (arbitrationCase.status === 'DUPLICATE') {
-      return 'hover:bg-neutral-50 border-b border-neutral-200 bg-warning bg-opacity-5';
-    }
-    return 'hover:bg-neutral-50 border-b border-neutral-200';
-  };
+  // Standard CSS class for all rows
+  const rowClass = 'hover:bg-neutral-50 border-b border-neutral-200';
   
-  // Get status display
-  const getStatusDisplay = (arbitrationCase: ArbitrationCase) => {
-    switch (arbitrationCase.status) {
-      case 'COMPLETED':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[7pt] bg-success bg-opacity-10 text-success">
-            Completed
-          </span>
-        );
-      case 'CLOSED':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[7pt] bg-neutral-100 text-neutral-400">
-            Closed
-          </span>
-        );
-      case 'DUPLICATE':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[7pt] bg-warning bg-opacity-10 text-warning">
-            Duplicate
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[7pt] bg-neutral-100 text-neutral-400">
-            {arbitrationCase.status}
-          </span>
-        );
-    }
-  };
+  // Status display removed as requested
   
   // Generate pagination buttons
   const renderPaginationButtons = () => {
@@ -348,7 +315,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
               </tr>
             ) : (
               cases.map(arbitrationCase => (
-                <tr key={arbitrationCase.id} className={getRowClass(arbitrationCase)}>
+                <tr key={arbitrationCase.id} className={rowClass}>
                   <td className="p-2 text-neutral-500">{arbitrationCase.caseId}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.arbitratorName || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.respondentName || ''}</td>
