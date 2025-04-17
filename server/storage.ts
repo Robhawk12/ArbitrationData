@@ -10,7 +10,7 @@ import {
   type InsertUser 
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, desc, sql, and, or, isNull } from "drizzle-orm";
+import { eq, like, desc, sql, and, or, isNull, isNotNull } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -80,8 +80,8 @@ export class DatabaseStorage implements IStorage {
           like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
           like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
           like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.claimantName}, ''))`, lowerFilter),
           like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
+          like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
           like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter)
         )
       );
@@ -139,8 +139,8 @@ export class DatabaseStorage implements IStorage {
         WHERE lower(${arbitrationCases.caseId}) LIKE ${lowerFilter}
         OR lower(${arbitrationCases.forum}) LIKE ${lowerFilter}
         OR lower(COALESCE(${arbitrationCases.arbitratorName}, '')) LIKE ${lowerFilter}
-        OR lower(COALESCE(${arbitrationCases.claimantName}, '')) LIKE ${lowerFilter}
         OR lower(COALESCE(${arbitrationCases.respondentName}, '')) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.consumerAttorney}, '')) LIKE ${lowerFilter}
         OR lower(COALESCE(${arbitrationCases.disposition}, '')) LIKE ${lowerFilter}
       `;
     }
@@ -226,7 +226,7 @@ export class DatabaseStorage implements IStorage {
     const [duplicatesResult] = await db
       .select({ count: sql`count(*)` })
       .from(arbitrationCases)
-      .where(eq(arbitrationCases.status, 'DUPLICATE'));
+      .where(isNotNull(arbitrationCases.duplicateOf));
     const duplicates = Number(duplicatesResult?.count || 0);
     
     // Count cases with missing critical data
@@ -236,8 +236,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         or(
           isNull(arbitrationCases.arbitratorName),
-          isNull(arbitrationCases.claimantName),
           isNull(arbitrationCases.respondentName),
+          isNull(arbitrationCases.consumerAttorney),
           isNull(arbitrationCases.filingDate),
           isNull(arbitrationCases.disposition)
         )
