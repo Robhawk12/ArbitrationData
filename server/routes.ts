@@ -202,30 +202,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'resolution', 'status', 'case_status', 'case status'
           ]);
           
-          // Extract claim amount
-          const claimAmount = extractField(rowObj, [
+          // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
+          const claimAmtConsumer = extractField(rowObj, [
+            'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
+            'consumer claim amount'
+          ]);
+          
+          const claimAmtBusiness = extractField(rowObj, [
+            'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
+            'business claim amount'
+          ]);
+          
+          // Also check generic claim amount fields as fallback
+          const genericClaimAmount = extractField(rowObj, [
             'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
             'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
           ]);
           
-          // Aggregate multiple award columns into a single value
-          const awardColumns = [
+          // Calculate total claim amount by combining consumer and business claims
+          let claimAmount = null;
+          const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+          const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+          
+          if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
+            // Use the sum if we have either valid consumer or business claim
+            const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
+            const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
+            claimAmount = (validConsumerClaim + validBusinessClaim).toString();
+          } else if (genericClaimAmount) {
+            // Fallback to generic claim amount if provided
+            claimAmount = genericClaimAmount;
+          }
+          
+          // Extract and aggregate award amounts (AWARD_AMT_CONSUMER + AWARD_AMT_BUSINESS)
+          const awardAmtConsumer = extractField(rowObj, [
+            'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
+            'consumer award amount'
+          ]);
+          
+          const awardAmtBusiness = extractField(rowObj, [
+            'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
+            'business award amount'
+          ]);
+          
+          // Also check generic award amount fields as fallback
+          const genericAwardColumns = [
             'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
-            'consumer award', 'award total', 'total award', 'monetary relief',
-            'award to consumer', 'monetary award', 'damages', 'compensation',
-            'economic damages', 'non-economic damages', 'punitive damages'
+            'award total', 'total award', 'monetary relief',
+            'monetary award', 'damages', 'compensation'
           ];
           
-          // First try to get the primary award amount
-          let awardAmount = extractField(rowObj, awardColumns);
+          const genericAwardAmount = extractField(rowObj, genericAwardColumns);
           
-          // If no primary award, try to aggregate from multiple award columns
+          // Calculate total award amount by combining consumer and business awards
+          let awardAmount = null;
+          const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+          const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+          
+          if (!isNaN(consumerAwardNum) || !isNaN(businessAwardNum)) {
+            // Use the sum if we have either valid consumer or business award
+            const validConsumerAward = !isNaN(consumerAwardNum) ? consumerAwardNum : 0;
+            const validBusinessAward = !isNaN(businessAwardNum) ? businessAwardNum : 0;
+            awardAmount = (validConsumerAward + validBusinessAward).toString();
+          } else if (genericAwardAmount) {
+            // Fallback to generic award amount if provided
+            awardAmount = genericAwardAmount;
+          }
+          
+          // If still no award found, search for any award-related columns
           if (!awardAmount) {
             let totalAward = 0;
             let foundAward = false;
             
             // Look for any award-related columns and sum their values
-            // Type assertion for row as Record<string, any>
             const rowAsRecord = row as Record<string, any>;
             const rowKeys = Object.keys(rowAsRecord);
             

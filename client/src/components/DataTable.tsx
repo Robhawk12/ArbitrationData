@@ -12,6 +12,7 @@ interface ArbitrationCase {
   consumerAttorney: string | null;
   filingDate: string | null;
   disposition: string | null;
+  claimAmount: string | null;
   awardAmount: string | null;
   status: string;
   sourceFile: string;
@@ -118,7 +119,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         c.respondentName || '',
         c.consumerAttorney || '',
         c.disposition || '',
-        'N/A', // Claim Amount (placeholder for now)
+        c.claimAmount || '',
         c.awardAmount || '',
         c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
         c.forum
@@ -321,7 +322,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                   <td className="p-2 text-neutral-500">{arbitrationCase.respondentName || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.consumerAttorney || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.disposition || ''}</td>
-                  <td className="p-2 text-neutral-500 text-right">N/A</td>
+                  <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.claimAmount)}</td>
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.awardAmount)}</td>
                   <td className="p-2 text-neutral-500">{formatDate(arbitrationCase.filingDate)}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.forum}</td>
