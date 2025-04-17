@@ -30,6 +30,7 @@ export const arbitrationCases = pgTable("arbitration_cases", {
   arbitratorName: text("arbitrator_name"),
   claimantName: text("claimant_name"),
   respondentName: text("respondent_name"),
+  consumerAttorney: text("consumer_attorney"),
   filingDate: timestamp("filing_date"),
   disposition: text("disposition"),
   awardAmount: text("award_amount"),

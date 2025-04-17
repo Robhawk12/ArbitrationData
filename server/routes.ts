@@ -167,22 +167,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
           ]);
           
-          // Claimant is synonymous with Consumer
-          const consumerFields = [
-            'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name',
-            'claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff'
-          ];
-          
-          // Respondent is the business/company
-          const businessFields = [
+          // For AAA files specifically, the nonconsumer is the Respondent (Column A)
+          // We prioritize 'nonconsumer' and related fields when looking for the respondent
+          const respondentFields = [
+            'nonconsumer', 'non-consumer', 'non consumer', 'non_consumer', 
             'business', 'business name', 'business_name', 'company', 'company name',
             'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant'
           ];
           
-          // Detect which fields contain consumer vs. business data
-          // by looking at sample content
+          // For consumer, we focus on consumer-related fields and avoid using "claimant"
+          const consumerFields = [
+            'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name',
+            'plaintiff'
+          ];
+
+          // Get consumer attorney information
+          const consumerAttorney = extractField(rowObj, [
+            'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
+            'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
+          ]);
+          
+          // Extract consumer and respondent names
           let claimantName = extractField(rowObj, consumerFields);
-          let respondentName = extractField(rowObj, businessFields);
+          let respondentName = extractField(rowObj, respondentFields);
           
           // If fields appear to be swapped (e.g., business name is in claimant field),
           // we need to correct them
@@ -271,6 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               arbitratorName,
               claimantName,
               respondentName,
+              consumerAttorney,
               filingDate,
               disposition,
               awardAmount,
@@ -305,6 +313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             arbitratorName,
             claimantName,
             respondentName,
+            consumerAttorney,
             filingDate,
             disposition,
             awardAmount,
