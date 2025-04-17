@@ -61,33 +61,11 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
     }).format(amount);
   };
   
-  // Determine data quality label
-  const getDataQualityLabel = () => {
-    if (data.totalCases === 0) return "N/A";
-    
-    const duplicateRate = (data.duplicates / data.totalCases) * 100;
-    const missingDataRate = (data.missingData / data.totalCases) * 100;
-    
-    if (duplicateRate < 2 && missingDataRate < 5) return "Good";
-    if (duplicateRate < 5 && missingDataRate < 10) return "Fair";
-    return "Needs Review";
-  };
-  
-  // Determine data quality class
-  const getDataQualityClass = () => {
-    if (data.totalCases === 0) return "text-neutral-400";
-    
-    const quality = getDataQualityLabel();
-    if (quality === "Good") return "text-success";
-    if (quality === "Fair") return "text-warning";
-    return "text-error";
-  };
-  
   return (
     <section className="mt-6 bg-white rounded-md shadow-sm p-4">
       <h2 className="text-[10pt] font-semibold text-neutral-500 mb-3">Data Processing Summary</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Statistics Card: Total Cases */}
         <div className="bg-neutral-50 rounded p-3">
           <div className="flex justify-between items-center">
@@ -102,26 +80,6 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
             <div className="flex-1">
               <div className="text-[8pt] text-neutral-400">JAMS</div>
               <div className="text-[9pt] font-medium text-secondary">{data.jams}</div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Statistics Card: Data Quality */}
-        <div className="bg-neutral-50 rounded p-3">
-          <div className="flex justify-between items-center">
-            <h3 className="text-[9pt] text-neutral-400">Data Quality</h3>
-            <span className={`text-[10pt] font-semibold ${getDataQualityClass()}`}>
-              {getDataQualityLabel()}
-            </span>
-          </div>
-          <div className="flex mt-2">
-            <div className="flex-1">
-              <div className="text-[8pt] text-neutral-400">Duplicates</div>
-              <div className="text-[9pt] font-medium text-warning">{data.duplicates}</div>
-            </div>
-            <div className="flex-1">
-              <div className="text-[8pt] text-neutral-400">Missing Data</div>
-              <div className="text-[9pt] font-medium text-neutral-400">{data.missingData}</div>
             </div>
           </div>
         </div>

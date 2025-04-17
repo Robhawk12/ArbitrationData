@@ -260,21 +260,12 @@ export default function FileUploadSection({
                   <span className="text-[8pt] text-neutral-500">{file.filename}</span>
                 </div>
                 <div className="flex items-center">
-                  {file.status === "COMPLETED" && file.duplicatesFound === 0 && (
+                  {file.status === "COMPLETED" && (
                     <span className="text-[8pt] text-success px-2 py-0.5 rounded-full bg-success bg-opacity-10 flex items-center">
                       <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                       </svg>
                       Processed
-                    </span>
-                  )}
-                  
-                  {file.status === "COMPLETED" && file.duplicatesFound > 0 && (
-                    <span className="text-[8pt] text-warning px-2 py-0.5 rounded-full bg-warning bg-opacity-10 flex items-center">
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                      {file.duplicatesFound} Duplicates
                     </span>
                   )}
                   
