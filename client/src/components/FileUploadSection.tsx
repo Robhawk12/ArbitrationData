@@ -31,6 +31,7 @@ export default function FileUploadSection({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingFile, setProcessingFile] = useState<string | null>(null);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Fetch processed files list
@@ -130,6 +131,14 @@ export default function FileUploadSection({
           const response = JSON.parse(xhr.responseText);
           setIsUploading(false);
           setProcessingFile(null);
+          setUploadComplete(true);
+          
+          // Auto-hide the success message after 5 seconds
+          setTimeout(() => {
+            setUploadComplete(false);
+          }, 5000);
+          
+          // Refresh the files list and notify parent component
           refetchFiles();
           onFileProcessed(response);
         } else {
@@ -169,13 +178,13 @@ export default function FileUploadSection({
         
         {/* File Upload Component */}
         <div 
-          className="file-upload-zone rounded-md p-8 bg-neutral-100 cursor-pointer text-center"
+          className="file-upload-zone rounded-md p-4 bg-neutral-100 cursor-pointer text-center"
           onClick={handleUploadClick}
           onDragOver={handleDragOver}
           onDrop={handleFileDrop}
         >
           <div className="flex flex-col items-center justify-center">
-            <svg className="w-8 h-8 text-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className="w-6 h-6 text-primary mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
             <p className="text-[9pt] text-neutral-400 mb-1">Drag and drop Excel files here or click to browse</p>
@@ -194,10 +203,6 @@ export default function FileUploadSection({
         
         {/* Upload Status Section */}
         <div className="mt-4 space-y-2">
-          <div className="flex justify-between items-center text-[9pt]">
-            <span className="text-neutral-400">Processing Order:</span>
-            <span className="text-neutral-500">1. AAA forum data files → 2. JAMS forum data files</span>
-          </div>
           
           {/* Processing Status */}
           {isUploading && processingFile && (
@@ -212,6 +217,28 @@ export default function FileUploadSection({
                   className="bg-primary h-1 rounded-full" 
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
+              </div>
+            </div>
+          )}
+          
+          {/* Upload Complete Notification */}
+          {uploadComplete && !isUploading && (
+            <div className="bg-success bg-opacity-10 rounded p-3 mt-3 animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span className="text-[9pt] font-medium text-success">File processing complete!</span>
+                </div>
+                <button 
+                  onClick={() => setUploadComplete(false)}
+                  className="text-success hover:text-success-dark"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
               </div>
             </div>
           )}
