@@ -103,9 +103,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileSize = req.file.size;
       
       // Determine if AAA or JAMS file based on filename for prioritization
-      const isAAA = fileName.toLowerCase().includes('aaa') || 
-                    !fileName.toLowerCase().includes('jams');
-      const priority = isAAA ? 1 : 2; // AAA has higher priority (lower number)
+      const isJAMS = fileName.toLowerCase().includes('jams');
+      const isAAA = fileName.toLowerCase().includes('aaa');
+      // If explicitly JAMS in filename, use that, otherwise check for AAA, or default to OTHER
+      const fileType = isJAMS ? "JAMS" : (isAAA ? "AAA" : "OTHER");
+      const priority = (fileType === "AAA") ? 1 : (fileType === "JAMS" ? 2 : 3); // AAA has highest priority
       
       // Check if file already processed
       const existingFile = await storage.getProcessedFileByName(fileName);
@@ -140,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duplicatesFound: 0,
         discrepanciesFound: 0,
         priority: priority,
-        fileType: isAAA ? "AAA" : "JAMS",
+        fileType: fileType,
         status: "PROCESSING"
       });
       
@@ -157,9 +159,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Extract and standardize fields
           // Enhanced approach with more possible field names
           const caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
-                        `${isAAA ? 'AAA' : 'JAMS'}-${Date.now()}-${recordsProcessed}`;
+                        `${fileType}-${Date.now()}-${recordsProcessed}`;
                         
-          const forum = isAAA ? "AAA" : "JAMS";
+          const forum = fileType;
           
           // More comprehensive field mapping for AAA and JAMS formats
           const arbitratorName = extractField(rowObj, [
@@ -195,7 +197,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
             'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
           ]);
-          const filingDate = filingDateRaw ? new Date(filingDateRaw) : null;
+          
+          // Handle date parsing safely
+          let filingDate = null;
+          if (filingDateRaw) {
+            try {
+              // First try to parse the date normally
+              const parsedDate = new Date(filingDateRaw);
+              
+              // Check if the date is valid and within reasonable range (between 1900 and 2100)
+              if (!isNaN(parsedDate.getTime()) && 
+                  parsedDate.getFullYear() >= 1900 && 
+                  parsedDate.getFullYear() <= 2100) {
+                filingDate = parsedDate;
+              } else {
+                // Date is invalid or out of reasonable range
+                console.log(`Invalid date value: ${filingDateRaw} - out of reasonable range`);
+              }
+            } catch (error) {
+              console.log(`Error parsing date: ${filingDateRaw} - ${error}`);
+            }
+          }
           
           const disposition = extractField(rowObj, [
             'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
