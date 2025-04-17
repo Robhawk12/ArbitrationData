@@ -108,22 +108,20 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       
       // Convert data to CSV
       const headers = [
-        'Case ID', 'Forum', 'Arbitrator Name', 'Consumer', 
-        'Consumer Attorney', 'Respondent', 'Filing Date', 
-        'Disposition', 'Award Amount', 'Status'
+        'Case ID', 'Arbitrator Name', 'Respondent', 'Consumer Attorney',
+        'Disposition', 'Claim Amount', 'Award Amount', 'Filing Date', 'Forum'
       ];
       
       const rows = data.data.map((c: ArbitrationCase) => [
         c.caseId,
-        c.forum,
         c.arbitratorName || '',
-        c.claimantName || '',
-        c.consumerAttorney || '',
         c.respondentName || '',
-        c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
+        c.consumerAttorney || '',
         c.disposition || '',
+        'N/A', // Claim Amount (placeholder for now)
         c.awardAmount || '',
-        c.status
+        c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
+        c.forum
       ]);
       
       const csvContent = [
@@ -327,15 +325,14 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           <thead>
             <tr className="bg-neutral-100">
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Case ID</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Forum</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Arbitrator Name</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer Attorney</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Respondent</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Filing Date</th>
+              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer Attorney</th>
               <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Disposition</th>
+              <th className="p-2 text-right font-semibold text-neutral-500 border-b border-neutral-200">Claim Amount</th>
               <th className="p-2 text-right font-semibold text-neutral-500 border-b border-neutral-200">Award Amount</th>
-              <th className="p-2 text-center font-semibold text-neutral-500 border-b border-neutral-200">Status</th>
+              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Filing Date</th>
+              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Forum</th>
             </tr>
           </thead>
           <tbody>
@@ -353,17 +350,14 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
               cases.map(arbitrationCase => (
                 <tr key={arbitrationCase.id} className={getRowClass(arbitrationCase)}>
                   <td className="p-2 text-neutral-500">{arbitrationCase.caseId}</td>
-                  <td className="p-2 text-neutral-500">{arbitrationCase.forum}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.arbitratorName || ''}</td>
-                  <td className="p-2 text-neutral-500">{arbitrationCase.claimantName || ''}</td>
-                  <td className="p-2 text-neutral-500">{arbitrationCase.consumerAttorney || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.respondentName || ''}</td>
-                  <td className="p-2 text-neutral-500">{formatDate(arbitrationCase.filingDate)}</td>
+                  <td className="p-2 text-neutral-500">{arbitrationCase.consumerAttorney || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.disposition || ''}</td>
+                  <td className="p-2 text-neutral-500 text-right">N/A</td>
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.awardAmount)}</td>
-                  <td className="p-2">
-                    {getStatusDisplay(arbitrationCase)}
-                  </td>
+                  <td className="p-2 text-neutral-500">{formatDate(arbitrationCase.filingDate)}</td>
+                  <td className="p-2 text-neutral-500">{arbitrationCase.forum}</td>
                 </tr>
               ))
             )}

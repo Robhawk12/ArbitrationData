@@ -10,10 +10,11 @@ interface StandardizedField {
 export const standardFields: StandardizedField[] = [
   { field: 'caseId', possibleNames: ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id'], required: true },
   { field: 'arbitratorName', possibleNames: ['arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'], required: false },
-  { field: 'claimantName', possibleNames: ['claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff', 'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name'], required: false },
-  { field: 'respondentName', possibleNames: ['respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant', 'business', 'business name', 'business_name', 'company', 'company name'], required: false },
+  { field: 'respondentName', possibleNames: ['respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant', 'business', 'business name', 'business_name', 'company', 'company name', 'nonconsumer'], required: false },
+  { field: 'consumerAttorney', possibleNames: ['consumer attorney', 'consumerattorney', 'consumer_attorney', 'claimant attorney', 'claimant_attorney', 'name_consumer_attorney', 'attorney name', 'attorney_name'], required: false },
   { field: 'filingDate', possibleNames: ['filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 'date', 'initiated', 'initiated on', 'date initiated', 'submission date'], required: false },
   { field: 'disposition', possibleNames: ['disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 'resolution', 'status', 'case_status', 'case status'], required: false },
+  { field: 'claimAmount', possibleNames: ['claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 'amount_claimed', 'disputed amount', 'amount in dispute'], required: false },
   { field: 'awardAmount', possibleNames: ['award', 'award amount', 'awardamount', 'award_amount', 'amount', 'consumer award', 'award total', 'total award', 'monetary relief'], required: false },
 ];
 
