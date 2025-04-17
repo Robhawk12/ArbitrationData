@@ -21,7 +21,10 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
   // Fetch summary data if not provided
   const { data: fetchedSummary, refetch } = useQuery<DataSummary>({
     queryKey: ['/api/summary'],
-    enabled: !summary
+    enabled: !summary,
+    onSuccess: (data) => {
+      console.log("Received summary data:", data);
+    }
   });
   
   // Refetch when refreshTrigger changes
@@ -79,7 +82,7 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
             </div>
             <div className="flex-1">
               <div className="text-[8pt] text-neutral-400">JAMS</div>
-              <div className="text-[9pt] font-medium text-secondary">{data.jams}</div>
+              <div className="text-[9pt] font-medium text-blue-500">{data.jams}</div>
             </div>
           </div>
         </div>
