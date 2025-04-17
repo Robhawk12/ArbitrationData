@@ -1,0 +1,112 @@
+import { useState } from "react";
+import AppHeader from "@/components/AppHeader";
+import FileUploadSection from "@/components/FileUploadSection";
+import DataTable from "@/components/DataTable";
+import ProcessingSummary from "@/components/ProcessingSummary";
+import NotificationSystem from "@/components/NotificationSystem";
+import { useQuery } from "@tanstack/react-query";
+
+interface Notification {
+  id: string;
+  type: "success" | "error" | "warning";
+  title: string;
+  message: string;
+}
+
+export default function Home() {
+  const [searchFilter, setSearchFilter] = useState<string>("");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [tableRefreshTrigger, setTableRefreshTrigger] = useState<number>(0);
+  
+  // Fetch data summary
+  const { data: summaryData, refetch: refetchSummary } = useQuery({
+    queryKey: ['/api/summary'],
+  });
+  
+  // Handle adding notifications
+  const addNotification = (notification: Omit<Notification, "id">) => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { ...notification, id }]);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      removeNotification(id);
+    }, 5000);
+  };
+  
+  // Handle removing notifications
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+  
+  // Handle file upload completion - refresh data
+  const handleFileProcessed = (result: { 
+    message: string, 
+    recordsProcessed: number, 
+    duplicatesFound: number 
+  }) => {
+    // Refresh table data
+    setTableRefreshTrigger(prev => prev + 1);
+    
+    // Refresh summary data
+    refetchSummary();
+    
+    // Add appropriate notification
+    if (result.duplicatesFound > 0) {
+      addNotification({
+        type: "warning",
+        title: "Potential Duplicates Found",
+        message: `${result.duplicatesFound} potential duplicate cases were identified.`
+      });
+    } else {
+      addNotification({
+        type: "success",
+        title: "File Processed Successfully",
+        message: `Processed ${result.recordsProcessed} records with no duplicates.`
+      });
+    }
+  };
+  
+  // Handle file processing error
+  const handleFileError = (error: string) => {
+    addNotification({
+      type: "error",
+      title: "File Processing Error",
+      message: error
+    });
+  };
+  
+  // Handle search filter change
+  const handleSearch = (filter: string) => {
+    setSearchFilter(filter);
+  };
+  
+  return (
+    <div className="bg-neutral-100 min-h-screen">
+      <AppHeader />
+      
+      <main className="container mx-auto px-4 py-6">
+        <FileUploadSection 
+          onFileProcessed={handleFileProcessed}
+          onFileError={handleFileError} 
+        />
+        
+        <DataTable 
+          filter={searchFilter}
+          refreshTrigger={tableRefreshTrigger}
+          onSearch={handleSearch}
+        />
+        
+        <ProcessingSummary 
+          summary={summaryData} 
+          refreshTrigger={tableRefreshTrigger}
+        />
+      </main>
+      
+      <NotificationSystem 
+        notifications={notifications}
+        onRemove={removeNotification}
+      />
+    </div>
+  );
+}

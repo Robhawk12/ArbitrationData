@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Arbitration Data Management System</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 8pt;
+      }
+      .data-table {
+        font-family: Arial, sans-serif;
+        font-size: 8pt;
+      }
+      .data-table th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .file-upload-zone {
+        border: 2px dashed #a19f9d;
+        transition: all 0.3s;
+      }
+      .file-upload-zone:hover {
+        border-color: #0078d4;
+      }
+      .processing-indicator {
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
+    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+  </body>
+</html>
