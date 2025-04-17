@@ -187,24 +187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
           ]);
           
-          // Extract consumer and respondent names
-          let claimantName = extractField(rowObj, consumerFields);
+          // Extract respondent name (primarily focusing on business/non-consumer entity)
           let respondentName = extractField(rowObj, respondentFields);
-          
-          // If fields appear to be swapped (e.g., business name is in claimant field),
-          // we need to correct them
-          if (claimantName && respondentName) {
-            // Check if names are potentially swapped by looking for business indicators
-            const businessIndicators = ['inc', 'llc', 'corporation', 'corp', 'co.', 'company', 'bank', 'financial', 'insurance'];
-            const claimantLower = claimantName.toLowerCase();
-            
-            // If claimant field contains business indicators, swap the fields
-            if (businessIndicators.some(indicator => claimantLower.includes(indicator))) {
-              const temp = claimantName;
-              claimantName = respondentName;
-              respondentName = temp;
-            }
-          }
           
           // Parse filing date - handles multiple formats
           const filingDateRaw = extractField(rowObj, [
@@ -216,6 +200,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const disposition = extractField(rowObj, [
             'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
             'resolution', 'status', 'case_status', 'case status'
+          ]);
+          
+          // Extract claim amount
+          const claimAmount = extractField(rowObj, [
+            'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
+            'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
           ]);
           
           // Aggregate multiple award columns into a single value
@@ -276,13 +266,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               caseId: `${caseId}-dup-${duplicatesFound}`,
               forum,
               arbitratorName,
-              claimantName,
               respondentName,
               consumerAttorney,
               filingDate,
               disposition,
+              claimAmount,
               awardAmount,
-              status: "DUPLICATE",
               sourceFile: fileName,
               duplicateOf: caseId,
               hasDiscrepancies: false,
@@ -293,17 +282,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Track discrepancies (missing critical data)
-          const hasDiscrepancies = !arbitratorName || !claimantName || !respondentName || !filingDate || !disposition;
+          const hasDiscrepancies = !arbitratorName || !respondentName || !filingDate || !disposition;
           if (hasDiscrepancies) {
             discrepanciesFound++;
-          }
-          
-          // Determine case status
-          let status = "COMPLETED";
-          if (disposition?.toLowerCase().includes('withdrawn')) {
-            status = "CLOSED";
-          } else if (disposition?.toLowerCase().includes('dismissed')) {
-            status = "CLOSED";
           }
           
           // Create case record
@@ -311,13 +292,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             caseId,
             forum,
             arbitratorName,
-            claimantName,
             respondentName,
             consumerAttorney,
             filingDate,
             disposition,
+            claimAmount,
             awardAmount,
-            status,
             sourceFile: fileName,
             hasDiscrepancies,
             rawData: JSON.stringify(row)
