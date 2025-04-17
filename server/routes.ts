@@ -1,9 +1,18 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { read, utils } from "xlsx";
 import path from "path";
+
+// Extend Express Request type to include multer file
+declare global {
+  namespace Express {
+    interface Request {
+      file?: Express.Multer.File;
+    }
+  }
+}
 import { insertArbitrationCaseSchema, insertProcessedFileSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -13,7 +22,7 @@ const upload = multer({
   limits: {
     fileSize: 25 * 1024 * 1024, // 25MB limit (to accommodate 20MB+ files)
   },
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext !== '.xlsx' && ext !== '.xls') {
       return cb(new Error('Only Excel files (.xlsx, .xls) are allowed'));
@@ -143,21 +152,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const row of jsonData) {
         try {
           // Extract and standardize fields
-          // This is a simplified approach - would need customization for specific file formats
-          const caseId = extractField(row, ['case_id', 'caseid', 'case #', 'case number', 'id']) || 
+          // Enhanced approach with more possible field names
+          const caseId = extractField(row, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                         `${isAAA ? 'AAA' : 'JAMS'}-${Date.now()}-${recordsProcessed}`;
                         
           const forum = isAAA ? "AAA" : "JAMS";
-          const arbitratorName = extractField(row, ['arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name']);
-          const claimantName = extractField(row, ['claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff']);
-          const respondentName = extractField(row, ['respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant']);
+          
+          // More comprehensive field mapping for AAA and JAMS formats
+          const arbitratorName = extractField(row, [
+            'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
+            'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
+          ]);
+          
+          const claimantName = extractField(row, [
+            'claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff', 
+            'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name'
+          ]);
+          
+          const respondentName = extractField(row, [
+            'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant', 
+            'business', 'business name', 'business_name', 'company', 'company name'
+          ]);
           
           // Parse filing date - handles multiple formats
-          const filingDateRaw = extractField(row, ['filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed']);
+          const filingDateRaw = extractField(row, [
+            'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
+            'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
+          ]);
           const filingDate = filingDateRaw ? new Date(filingDateRaw) : null;
           
-          const disposition = extractField(row, ['disposition', 'outcome', 'result']);
-          const awardAmount = extractField(row, ['award', 'award amount', 'awardamount', 'award_amount', 'amount']);
+          const disposition = extractField(row, [
+            'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
+            'resolution', 'status', 'case_status', 'case status'
+          ]);
+          
+          const awardAmount = extractField(row, [
+            'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
+            'consumer award', 'award total', 'total award', 'monetary relief'
+          ]);
           
           // Check for duplicates
           const existingCase = await storage.getCaseById(caseId);
@@ -274,20 +306,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Helper function to extract fields with different possible names
+  // Enhanced helper function to extract fields with different possible names
   function extractField(row: any, possibleNames: string[]): string | null {
+    // Try direct exact match first
     for (const name of possibleNames) {
       if (row[name] !== undefined) {
         return String(row[name]);
       }
     }
     
-    // Try case-insensitive match
+    // Try case-insensitive exact match
     const keys = Object.keys(row);
     for (const name of possibleNames) {
       const matchingKey = keys.find(key => key.toLowerCase() === name.toLowerCase());
       if (matchingKey && row[matchingKey] !== undefined) {
         return String(row[matchingKey]);
+      }
+    }
+    
+    // Try fuzzy matching - look for keys that contain our search terms
+    for (const name of possibleNames) {
+      // Skip very short names (less than 4 chars) to avoid false matches
+      if (name.length < 4) continue;
+      
+      const nameLower = name.toLowerCase();
+      // Find keys that contain our search term
+      const fuzzyMatch = keys.find(key => {
+        const keyLower = key.toLowerCase();
+        return keyLower.includes(nameLower) || nameLower.includes(keyLower);
+      });
+      
+      if (fuzzyMatch && row[fuzzyMatch] !== undefined) {
+        return String(row[fuzzyMatch]);
+      }
+    }
+    
+    // Advanced match for column headers that might have spaces, underscores, etc.
+    for (const name of possibleNames) {
+      // Skip very short names to avoid false matches
+      if (name.length < 4) continue;
+      
+      // Normalize the search term - remove spaces, underscores, etc.
+      const normalizedName = name.toLowerCase().replace(/[_\s-]/g, '');
+      
+      const advancedMatch = keys.find(key => {
+        const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, '');
+        return normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey);
+      });
+      
+      if (advancedMatch && row[advancedMatch] !== undefined) {
+        return String(row[advancedMatch]);
       }
     }
     
