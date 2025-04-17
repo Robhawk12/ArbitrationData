@@ -70,11 +70,12 @@ export class DatabaseStorage implements IStorage {
   async getCases(page: number, limit: number, filter?: string): Promise<ArbitrationCase[]> {
     const offset = (page - 1) * limit;
     
-    let query = db.select().from(arbitrationCases);
+    // Create a query builder for basic select
+    let queryBuilder = db.select().from(arbitrationCases);
     
     if (filter) {
       const lowerFilter = `%${filter.toLowerCase()}%`;
-      query = query.where(
+      queryBuilder = queryBuilder.where(
         or(
           like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
           like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
@@ -86,7 +87,8 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    return query.limit(limit).offset(offset).orderBy(desc(arbitrationCases.processingDate));
+    // Execute the query with limit, offset and order
+    return await queryBuilder.limit(limit).offset(offset).orderBy(desc(arbitrationCases.processingDate));
   }
 
   async getCaseById(caseId: string): Promise<ArbitrationCase | undefined> {
@@ -127,24 +129,24 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getCaseCount(filter?: string): Promise<number> {
-    let query = db.select({ count: sql`count(*)` }).from(arbitrationCases);
+    // We'll use a raw SQL query to get the count
+    let countQuery = sql`SELECT COUNT(*) FROM ${arbitrationCases}`;
     
     if (filter) {
       const lowerFilter = `%${filter.toLowerCase()}%`;
-      query = query.where(
-        or(
-          like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
-          like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.claimantName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter)
-        )
-      );
+      countQuery = sql`
+        SELECT COUNT(*) FROM ${arbitrationCases}
+        WHERE lower(${arbitrationCases.caseId}) LIKE ${lowerFilter}
+        OR lower(${arbitrationCases.forum}) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.arbitratorName}, '')) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.claimantName}, '')) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.respondentName}, '')) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.disposition}, '')) LIKE ${lowerFilter}
+      `;
     }
     
-    const result = await query;
-    return Number(result[0]?.count || 0);
+    const result = await db.execute(countQuery);
+    return Number(result.rows[0]?.count || 0);
   }
   
   // Processed files methods
