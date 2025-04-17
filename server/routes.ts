@@ -219,8 +219,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // For disposition, make sure to include "Result" for JAMS files
           const disposition = extractField(rowObj, [
-            'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
+            'disposition', 'outcome', 'result', 'Result', 'award_or_outcome', 'award or outcome', 
             'resolution', 'status', 'case_status', 'case status'
           ]);
           
