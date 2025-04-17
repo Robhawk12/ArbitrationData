@@ -126,7 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Process first sheet (can be enhanced to process specific or all sheets)
       const worksheet = workbook.Sheets[sheetNames[0]];
-      const jsonData = utils.sheet_to_json(worksheet);
+      const jsonData = utils.sheet_to_json(worksheet) as Record<string, any>[];
       
       if (jsonData.length === 0) {
         return res.status(400).json({ error: "No data found in Excel file" });
@@ -151,45 +151,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const row of jsonData) {
         try {
+          // Cast row to Record<string, any> for type safety
+          const rowObj = row as Record<string, any>;
+          
           // Extract and standardize fields
           // Enhanced approach with more possible field names
-          const caseId = extractField(row, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
+          const caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                         `${isAAA ? 'AAA' : 'JAMS'}-${Date.now()}-${recordsProcessed}`;
                         
           const forum = isAAA ? "AAA" : "JAMS";
           
           // More comprehensive field mapping for AAA and JAMS formats
-          const arbitratorName = extractField(row, [
+          const arbitratorName = extractField(rowObj, [
             'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
             'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
           ]);
           
-          const claimantName = extractField(row, [
-            'claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff', 
-            'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name'
-          ]);
+          // Claimant is synonymous with Consumer
+          const consumerFields = [
+            'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name',
+            'claimant', 'claimant name', 'claimantname', 'claimant_name', 'plaintiff'
+          ];
           
-          const respondentName = extractField(row, [
-            'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant', 
-            'business', 'business name', 'business_name', 'company', 'company name'
-          ]);
+          // Respondent is the business/company
+          const businessFields = [
+            'business', 'business name', 'business_name', 'company', 'company name',
+            'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant'
+          ];
+          
+          // Detect which fields contain consumer vs. business data
+          // by looking at sample content
+          let claimantName = extractField(rowObj, consumerFields);
+          let respondentName = extractField(rowObj, businessFields);
+          
+          // If fields appear to be swapped (e.g., business name is in claimant field),
+          // we need to correct them
+          if (claimantName && respondentName) {
+            // Check if names are potentially swapped by looking for business indicators
+            const businessIndicators = ['inc', 'llc', 'corporation', 'corp', 'co.', 'company', 'bank', 'financial', 'insurance'];
+            const claimantLower = claimantName.toLowerCase();
+            
+            // If claimant field contains business indicators, swap the fields
+            if (businessIndicators.some(indicator => claimantLower.includes(indicator))) {
+              const temp = claimantName;
+              claimantName = respondentName;
+              respondentName = temp;
+            }
+          }
           
           // Parse filing date - handles multiple formats
-          const filingDateRaw = extractField(row, [
+          const filingDateRaw = extractField(rowObj, [
             'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
             'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
           ]);
           const filingDate = filingDateRaw ? new Date(filingDateRaw) : null;
           
-          const disposition = extractField(row, [
+          const disposition = extractField(rowObj, [
             'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
             'resolution', 'status', 'case_status', 'case status'
           ]);
           
-          const awardAmount = extractField(row, [
+          // Aggregate multiple award columns into a single value
+          const awardColumns = [
             'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
-            'consumer award', 'award total', 'total award', 'monetary relief'
-          ]);
+            'consumer award', 'award total', 'total award', 'monetary relief',
+            'award to consumer', 'monetary award', 'damages', 'compensation',
+            'economic damages', 'non-economic damages', 'punitive damages'
+          ];
+          
+          // First try to get the primary award amount
+          let awardAmount = extractField(rowObj, awardColumns);
+          
+          // If no primary award, try to aggregate from multiple award columns
+          if (!awardAmount) {
+            let totalAward = 0;
+            let foundAward = false;
+            
+            // Look for any award-related columns and sum their values
+            // Type assertion for row as Record<string, any>
+            const rowAsRecord = row as Record<string, any>;
+            const rowKeys = Object.keys(rowAsRecord);
+            
+            for (const key of rowKeys) {
+              const keyLower = key.toLowerCase();
+              if (keyLower.includes('award') || keyLower.includes('damage') || keyLower.includes('compensation')) {
+                const value = rowAsRecord[key];
+                if (value) {
+                  // Try to extract numeric value
+                  const numericValue = String(value).replace(/[^0-9.-]+/g, "");
+                  if (!isNaN(parseFloat(numericValue))) {
+                    totalAward += parseFloat(numericValue);
+                    foundAward = true;
+                  }
+                }
+              }
+            }
+            
+            if (foundAward) {
+              awardAmount = totalAward.toString();
+            }
+          } else {
+            // Clean existing award amount to ensure it's numeric
+            const numericValue = awardAmount.replace(/[^0-9.-]+/g, "");
+            if (!isNaN(parseFloat(numericValue))) {
+              awardAmount = numericValue;
+            }
+          }
           
           // Check for duplicates
           const existingCase = await storage.getCaseById(caseId);
@@ -307,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Enhanced helper function to extract fields with different possible names
-  function extractField(row: any, possibleNames: string[]): string | null {
+  function extractField(row: Record<string, any>, possibleNames: string[]): string | null {
     // Try direct exact match first
     for (const name of possibleNames) {
       if (row[name] !== undefined) {
