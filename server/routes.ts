@@ -433,6 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             disposition,
             claimAmount,
             awardAmount,
+            caseType,
             sourceFile: fileName,
             hasDiscrepancies,
             rawData: JSON.stringify(row)
