@@ -53,7 +53,26 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
     data: ArbitrationCase[], 
     pagination: PaginationData 
   }>({
-    queryKey: ['/api/cases', { page, limit: rowsPerPage, filter }],
+    queryKey: ['/api/cases', page, rowsPerPage, filter],
+    queryFn: async () => {
+      // Create URL with query parameters
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', rowsPerPage.toString());
+      if (filter) {
+        params.append('filter', filter);
+      }
+      const result = await fetch(`/api/cases?${params.toString()}`, {
+        credentials: "include"
+      });
+      
+      if (!result.ok) {
+        const text = await result.text();
+        throw new Error(`${result.status}: ${text || result.statusText}`);
+      }
+      
+      return await result.json();
+    }
   });
   
   // Refetch when refreshTrigger changes
@@ -315,7 +334,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                 </td>
               </tr>
             ) : (
-              cases.map(arbitrationCase => (
+              cases.map((arbitrationCase: ArbitrationCase) => (
                 <tr key={arbitrationCase.id} className={rowClass}>
                   <td className="p-2 text-neutral-500">{arbitrationCase.caseId}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.arbitratorName || ''}</td>

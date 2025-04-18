@@ -22,9 +22,6 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
   const { data: fetchedSummary, refetch } = useQuery<DataSummary>({
     queryKey: ['/api/summary'],
     enabled: !summary,
-    onSuccess: (data) => {
-      console.log("Received summary data:", data);
-    }
   });
   
   // Refetch when refreshTrigger changes
