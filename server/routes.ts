@@ -351,29 +351,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Check for duplicates
+          // Check for duplicates based on case ID
           const existingCase = await storage.getCaseById(caseId);
           
           if (existingCase) {
             duplicatesFound++;
-            
-            // Insert as duplicate but reference original
-            await storage.createCase({
-              caseId: `${caseId}-dup-${duplicatesFound}`,
-              forum,
-              arbitratorName,
-              respondentName,
-              consumerAttorney,
-              filingDate,
-              disposition,
-              claimAmount,
-              awardAmount,
-              sourceFile: fileName,
-              duplicateOf: caseId,
-              hasDiscrepancies: false,
-              rawData: JSON.stringify(row)
-            });
-            
+            // Skip this case entirely since it's a duplicate
+            // This prevents any duplicate entries from being added to the database
+            console.log(`Skipping duplicate case with ID: ${caseId}`);
             continue;
           }
           

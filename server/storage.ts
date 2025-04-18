@@ -245,14 +245,24 @@ export class DatabaseStorage implements IStorage {
     const missingData = Number(missingDataResult?.count || 0);
     
     // Get award amount statistics
-    // We need to cast awardAmount to numeric for calculations
+    // We need to cast awardAmount to numeric for calculations with careful validation
     const awardStats = await db.execute(sql`
       SELECT 
-        SUM(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' THEN ${arbitrationCases.awardAmount}::numeric ELSE 0 END) as total_amount,
-        AVG(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' THEN ${arbitrationCases.awardAmount}::numeric ELSE null END) as avg_amount,
-        MAX(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' THEN ${arbitrationCases.awardAmount}::numeric ELSE 0 END) as max_amount
+        SUM(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' 
+            THEN ${arbitrationCases.awardAmount}::numeric 
+            ELSE 0 END) as total_amount,
+        AVG(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' 
+            THEN ${arbitrationCases.awardAmount}::numeric 
+            ELSE null END) as avg_amount,
+        MAX(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' 
+            THEN ${arbitrationCases.awardAmount}::numeric 
+            ELSE 0 END) as max_amount,
+        COUNT(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' 
+            THEN 1 
+            ELSE null END) as valid_count
       FROM ${arbitrationCases}
-      WHERE ${arbitrationCases.awardAmount} IS NOT NULL
+      WHERE ${arbitrationCases.awardAmount} IS NOT NULL 
+      AND ${arbitrationCases.duplicateOf} IS NULL
     `);
     
     // Parse award statistics results
