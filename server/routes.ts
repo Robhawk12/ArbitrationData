@@ -397,6 +397,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Extract case type (dispute type)
+          let caseType = null;
+          if (fileType === "JAMS") {
+            caseType = extractField(rowObj, ['TYPE OF DISPUTE', 'Type of Dispute']);
+          } else {
+            caseType = extractField(rowObj, ['dispute type', 'dispute_type', 'case type', 'case_type']);
+          }
+          
           // Check for duplicates based on case ID
           const existingCase = await storage.getCaseById(caseId);
           
