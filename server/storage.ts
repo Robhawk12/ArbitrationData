@@ -82,7 +82,8 @@ export class DatabaseStorage implements IStorage {
           like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
           like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
           like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter)
+          like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter),
+          like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, lowerFilter)
         )
       );
     }
@@ -142,6 +143,7 @@ export class DatabaseStorage implements IStorage {
         OR lower(COALESCE(${arbitrationCases.respondentName}, '')) LIKE ${lowerFilter}
         OR lower(COALESCE(${arbitrationCases.consumerAttorney}, '')) LIKE ${lowerFilter}
         OR lower(COALESCE(${arbitrationCases.disposition}, '')) LIKE ${lowerFilter}
+        OR lower(COALESCE(${arbitrationCases.caseType}, '')) LIKE ${lowerFilter}
       `;
     }
     

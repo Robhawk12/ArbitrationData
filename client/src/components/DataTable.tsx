@@ -14,6 +14,7 @@ interface ArbitrationCase {
   disposition: string | null;
   claimAmount: string | null;
   awardAmount: string | null;
+  caseType: string | null;
   status: string;
   sourceFile: string;
   processingDate: string;
@@ -129,7 +130,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       // Convert data to CSV
       const headers = [
         'Case ID', 'Arbitrator Name', 'Respondent', 'Consumer Attorney',
-        'Disposition', 'Claim Amount', 'Award Amount', 'Filing Date', 'Forum'
+        'Disposition', 'Claim Amount', 'Award Amount', 'Filing Date', 'Case Type', 'Forum'
       ];
       
       const rows = data.data.map((c: ArbitrationCase) => [
@@ -141,6 +142,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         c.claimAmount || '',
         c.awardAmount || '',
         c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
+        c.caseType || '',
         c.forum
       ]);
       
@@ -319,6 +321,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
               <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Claim Amount</th>
               <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Award Amount</th>
               <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Filing Date</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Case Type</th>
               <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Forum</th>
             </tr>
           </thead>
@@ -344,6 +347,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.claimAmount)}</td>
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.awardAmount)}</td>
                   <td className="p-2 text-neutral-500">{formatDate(arbitrationCase.filingDate)}</td>
+                  <td className="p-2 text-neutral-500">{arbitrationCase.caseType || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.forum}</td>
                 </tr>
               ))
