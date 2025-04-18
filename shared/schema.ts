@@ -34,7 +34,6 @@ export const arbitrationCases = pgTable("arbitration_cases", {
   disposition: text("disposition"),
   claimAmount: text("claim_amount"),
   awardAmount: text("award_amount"),
-  caseType: text("case_type"),
   sourceFile: text("source_file").notNull(),
   processingDate: timestamp("processing_date").defaultNow().notNull(),
   hasDiscrepancies: boolean("has_discrepancies").default(false),
