@@ -1,17 +1,6 @@
 import { useState, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 
 interface ProcessedFile {
   id: number;
@@ -99,31 +88,7 @@ export default function FileUploadSection({
     }
   };
   
-  // Handle clearing all data
-  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
-  
-  const handleClearAllData = async () => {
-    try {
-      console.log("Clearing all data...");
-      const response = await apiRequest('DELETE', '/api/clearAll');
-      console.log("Clear data response:", response);
-      
-      // Ensure we get a fresh reload of data
-      setTimeout(() => {
-        refetchFiles();
-        onFileProcessed({
-          message: 'All data has been cleared successfully',
-          recordsProcessed: 0,
-          duplicatesFound: 0
-        });
-        setShowClearConfirmation(false);
-      }, 500);
-    } catch (error) {
-      console.error("Clear data error:", error);
-      onFileError(`Failed to clear all data: ${(error as Error).message}`);
-      setShowClearConfirmation(false);
-    }
-  };
+
   
   // File upload logic
   const uploadFile = async (file: File) => {
@@ -213,19 +178,6 @@ export default function FileUploadSection({
       <div className="bg-white rounded-md shadow-sm p-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-[10pt] font-semibold text-neutral-500">Data Ingestion</h2>
-          
-          {/* Clear All Data Button */}
-          <Button 
-            variant="destructive" 
-            size="sm"
-            onClick={() => setShowClearConfirmation(true)}
-            className="text-[8pt] h-8"
-          >
-            <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-            </svg>
-            Clear All Data
-          </Button>
         </div>
         
         {/* File Upload Component */}
@@ -345,30 +297,7 @@ export default function FileUploadSection({
           </div>
         </div>
       </div>
-      
-      {/* Confirmation Dialog for Clear All Data */}
-      <AlertDialog open={showClearConfirmation} onOpenChange={setShowClearConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear All Data</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all cases and uploaded files from the database.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                handleClearAllData();
-              }} 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Clear Data
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </section>
   );
 }

@@ -489,33 +489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Clear all data (files and cases)
-  app.delete("/api/clearAll", async (_req: Request, res: Response) => {
-    try {
-      console.log("Clearing all data from database...");
-      
-      // Use DELETE instead of TRUNCATE for more reliable clearing
-      await db.execute(sql`DELETE FROM arbitration_cases;`);
-      console.log("Deleted all rows from arbitration_cases table");
-      
-      await db.execute(sql`DELETE FROM processed_files;`);
-      console.log("Deleted all rows from processed_files table");
-      
-      // Reset the sequence counters
-      await db.execute(sql`ALTER SEQUENCE arbitration_cases_id_seq RESTART WITH 1;`);
-      await db.execute(sql`ALTER SEQUENCE processed_files_id_seq RESTART WITH 1;`);
-      console.log("Reset sequence counters");
-      
-      res.json({ 
-        message: "All data has been cleared successfully",
-        status: "success"
-      });
-      console.log("Data clear operation completed successfully");
-    } catch (error) {
-      console.error("Error clearing all data:", error);
-      res.status(500).json({ error: `Failed to clear all data: ${(error as Error).message}` });
-    }
-  });
+
   
   // Enhanced helper function to extract fields with different possible names
   function extractField(row: Record<string, any>, possibleNames: string[]): string | null {
