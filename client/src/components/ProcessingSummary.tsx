@@ -103,8 +103,8 @@ export default function ProcessingSummary({ summary, refreshTrigger }: Processin
               </div>
             </div>
             <div className="flex-1">
-              <div className="text-[8pt] text-neutral-400">Highest</div>
-              <div className="text-[9pt] font-medium text-neutral-500">
+              <div className="text-[8pt] text-[#538d59] font-medium">Highest</div>
+              <div className="text-[9pt] font-semibold text-[#217346]">
                 {formatCurrency(data.highestAwardAmount)}
               </div>
             </div>
