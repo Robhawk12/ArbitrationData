@@ -228,11 +228,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // For disposition, make sure to include "Result" for JAMS files
-          const disposition = extractField(rowObj, [
-            'disposition', 'outcome', 'result', 'Result', 'award_or_outcome', 'award or outcome', 
-            'resolution', 'status', 'case_status', 'case status'
-          ]);
+          // Extract disposition with specific handling for JAMS files
+          let disposition;
+          
+          // For JAMS files, prioritize the "Result" column for disposition
+          if (fileType === "JAMS") {
+            disposition = extractField(rowObj, ['result', 'Result']) || 
+                         extractField(rowObj, [
+                           'disposition', 'outcome', 'award_or_outcome', 'award or outcome', 
+                           'resolution', 'status', 'case_status', 'case status'
+                         ]);
+          } else {
+            // For AAA files, use standard disposition field names
+            disposition = extractField(rowObj, [
+              'disposition', 'outcome', 'result', 'Result', 'award_or_outcome', 'award or outcome', 
+              'resolution', 'status', 'case_status', 'case status'
+            ]);
+          }
           
           // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
           const claimAmtConsumer = extractField(rowObj, [
