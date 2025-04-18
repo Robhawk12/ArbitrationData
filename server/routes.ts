@@ -158,194 +158,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rowObj = row as Record<string, any>;
           
           // Extract and standardize fields
-          // Specialized handling for JAMS files vs. AAA files
+          // Enhanced approach with more possible field names
           let caseId;
-          let forum = fileType;
-          let respondentName = null;
-          let arbitratorName = null;
-          let consumerAttorney = null;
-          let filingDateRaw = null;
+          
+          // For JAMS files, ONLY use "REFNO" column for case_id (primary key)
+          if (fileType === "JAMS") {
+            // Only look for exact match on REFNO for JAMS files
+            caseId = extractField(rowObj, ['REFNO']) || 
+                    extractField(rowObj, ['refno', 'Refno', 'ref no', 'ref_no', 'reference number']) || 
+                    `${fileType}-${Date.now()}-${recordsProcessed}`;
+            
+            // Log the found case ID for debugging
+            console.log(`JAMS file - found case ID: ${caseId}`);
+          } else {
+            // For AAA files, use standard case_id field names
+            caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
+                      `${fileType}-${Date.now()}-${recordsProcessed}`;
+          }
+          
+          const forum = fileType;
+          
+          // More comprehensive field mapping for AAA and JAMS formats
+          const arbitratorName = extractField(rowObj, [
+            'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
+            'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
+          ]);
+          
+          // Get appropriate respondent name based on file type
+          let respondentName;
           
           if (fileType === "JAMS") {
-            // SPECIALIZED HANDLING FOR JAMS FILES
-            // Based on actual column names from the formatted JAMS file
+            // For JAMS files, ONLY use the "NONCONSUMER PARTY" column for Respondent
+            respondentName = extractField(rowObj, ['NONCONSUMER PARTY']) || 
+                            extractField(rowObj, ['NONCONSUMER', 'nonconsumer party', 'non-consumer party']);
             
-            // 1. REFNO is Case ID (column 0)
-            caseId = rowObj.REFNO || rowObj.Refno || rowObj['REFNO'];
-            if (!caseId) {
-              // Fallback to extraction if direct access fails
-              caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref_no']) || 
-                      `${fileType}-${Date.now()}-${recordsProcessed}`;
-            }
-            
-            // 2. NONCONSUMER PARTY is Respondent (column 3)
-            respondentName = rowObj['NONCONSUMER PARTY'] || rowObj.NONCONSUMER;
-            if (!respondentName) {
-              // Fallback to extraction if direct access fails
-              respondentName = extractField(rowObj, ['NONCONSUMER PARTY', 'nonconsumer party', 'non-consumer party']);
-            }
-            
-            // 3. ARBITRATOR NAME 1 is the primary arbitrator (column 22)
-            arbitratorName = rowObj['ARBITRATOR NAME 1'] || rowObj['Arbitrator Name 1'];
-            if (!arbitratorName) {
-              // Fallback to extraction if direct access fails
-              arbitratorName = extractField(rowObj, ['ARBITRATOR NAME 1', 'arbitrator name', 'ARBITRATOR NAME']);
-            }
-            
-            // 4. Consumer Party Attorney Names for consumer attorney (column 12)
-            consumerAttorney = rowObj['Consumer Party Attorney Names, if applicable'] || 
-                              rowObj['CONSUMER PARTY ATTORNEY NAMES'];
-            if (!consumerAttorney) {
-              // Fallback to extraction if direct access fails
-              consumerAttorney = extractField(rowObj, [
-                'Consumer Party Attorney Names, if applicable', 
-                'consumer attorney', 
-                'attorney_name'
-              ]);
-            }
-            
-            // 5. DATE DEMAND RECEIVED for filing date (column 13)
-            filingDateRaw = rowObj['DATE DEMAND RECEIVED'] || rowObj['Date Demand Received'];
-            
-            // Handle Excel date format - check if it's already a date object
-            if (filingDateRaw instanceof Date) {
-              // If it's already a Date object (Excel dates are often parsed this way by xlsx)
-              console.log(`  Filing Date (Excel Date): ${filingDateRaw.toISOString()}`);
-            } else if (typeof filingDateRaw === 'number') {
-              // Excel serialized date format - convert to JS date
-              // Excel uses 1/1/1900 as day 1, with 1/1/1970 roughly at day 25569
-              // UTC starts at 1970, so we convert from Excel to UTC
-              const excelEpoch = new Date(1900, 0, 1);
-              const millisecondsPerDay = 24 * 60 * 60 * 1000;
-              const javascriptDate = new Date(excelEpoch.getTime() + (filingDateRaw - 1) * millisecondsPerDay);
-              
-              // Validate before assignment
-              if (!isNaN(javascriptDate.getTime()) && 
-                  javascriptDate.getFullYear() >= 1900 && 
-                  javascriptDate.getFullYear() <= 2100) {
-                filingDateRaw = javascriptDate.toISOString();
-                console.log(`  Filing Date (Converted): ${filingDateRaw}`);
-              } else {
-                console.log(`  Invalid Excel date: ${filingDateRaw}`);
-                filingDateRaw = null;
-              }
-            } else if (filingDateRaw) {
-              // If string format, log it for debugging
-              console.log(`  Filing Date (Raw): ${filingDateRaw}`);
-            }
-            
-            // We'll log the findings later after handling the date
+            // Log the found respondent name for debugging
+            console.log(`JAMS file - found respondent: ${respondentName}`);
           } else {
-            // STANDARD HANDLING FOR AAA FILES
-            // For AAA files, use standard case_id field names
-            caseId = extractField(rowObj, [
-              'case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id'
-            ]) || `${fileType}-${Date.now()}-${recordsProcessed}`;
-            
-            // Use broader field searching for respondent
+            // For AAA files, use broader field searching
             const respondentFields = [
               'nonconsumer', 'non-consumer', 'non consumer', 'non_consumer', 
               'business', 'business name', 'business_name', 'company', 'company name',
               'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant'
             ];
             respondentName = extractField(rowObj, respondentFields);
-            
-            // Standard arbitrator extraction
-            arbitratorName = extractField(rowObj, [
-              'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
-              'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
-            ]);
-            
-            // Standard consumer attorney extraction
-            consumerAttorney = extractField(rowObj, [
-              'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
-              'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
-            ]);
-            
-            // Standard filing date extraction
-            filingDateRaw = extractField(rowObj, [
-              'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
-              'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
-            ]);
           }
           
-          // For consumer fields, we can use the same approach for both file types
+          // For consumer, we focus on consumer-related fields and avoid using "claimant"
           const consumerFields = [
             'consumer', 'consumer name', 'consumer_name', 'customer', 'customer name',
             'plaintiff'
           ];
+
+          // Get consumer attorney information
+          const consumerAttorney = extractField(rowObj, [
+            'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
+            'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
+          ]);
           
-          // Handle date parsing safely with special handling for JAMS files
+          // Parse filing date - handles multiple formats
+          const filingDateRaw = extractField(rowObj, [
+            'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
+            'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
+          ]);
+          
+          // Handle date parsing safely
           let filingDate = null;
-          
-          if (fileType === "JAMS") {
-            // For JAMS files, the Excel date parsing should have already happened
-            // Check if filingDateRaw is already a Date object from the Excel parser
-            if (filingDateRaw instanceof Date) {
-              // Check if date is valid and within reasonable range
-              if (!isNaN(filingDateRaw.getTime()) && 
-                  filingDateRaw.getFullYear() >= 1900 && 
-                  filingDateRaw.getFullYear() <= 2100) {
-                filingDate = filingDateRaw;
-                console.log(`  Filing Date (direct from Excel): ${filingDate.toISOString()}`);
+          if (filingDateRaw) {
+            try {
+              // First try to parse the date normally
+              const parsedDate = new Date(filingDateRaw);
+              
+              // Check if the date is valid and within reasonable range (between 1900 and 2100)
+              if (!isNaN(parsedDate.getTime()) && 
+                  parsedDate.getFullYear() >= 1900 && 
+                  parsedDate.getFullYear() <= 2100) {
+                filingDate = parsedDate;
               } else {
-                console.log(`  Invalid Excel date object: ${filingDateRaw}`);
+                // Date is invalid or out of reasonable range
+                console.log(`Invalid date value: ${filingDateRaw} - out of reasonable range`);
               }
-            } 
-            // If filingDateRaw is not a Date but is a number, try Excel date conversion
-            else if (typeof filingDateRaw === 'number') {
-              const excelDate = new Date(Math.round((filingDateRaw - 25569) * 86400 * 1000));
-              if (!isNaN(excelDate.getTime()) && 
-                  excelDate.getFullYear() >= 1900 && 
-                  excelDate.getFullYear() <= 2100) {
-                filingDate = excelDate;
-                console.log(`  Filing Date (converted from Excel number): ${filingDate.toISOString()}`);
-              } else {
-                console.log(`  Invalid Excel number date: ${filingDateRaw}`);
-              }
-            }
-            // Try direct access to the DATE DEMAND RECEIVED column
-            else {
-              // Try standard date parsing as a last resort
-              try {
-                const dateValue = rowObj['DATE DEMAND RECEIVED'];
-                if (dateValue instanceof Date) {
-                  filingDate = dateValue;
-                  console.log(`  Filing Date (direct from DATE DEMAND RECEIVED): ${filingDate.toISOString()}`);
-                } else if (typeof dateValue === 'string') {
-                  const parsedDate = new Date(dateValue);
-                  if (!isNaN(parsedDate.getTime()) && 
-                      parsedDate.getFullYear() >= 1900 && 
-                      parsedDate.getFullYear() <= 2100) {
-                    filingDate = parsedDate;
-                    console.log(`  Filing Date (parsed from string): ${filingDate.toISOString()}`);
-                  } else {
-                    console.log(`  Invalid string date: ${dateValue}`);
-                  }
-                }
-              } catch (error) {
-                console.log(`  Error accessing date field: ${error}`);
-              }
-            }
-          } else {
-            // Standard date parsing for AAA files
-            if (filingDateRaw) {
-              try {
-                // First try to parse the date normally
-                const parsedDate = new Date(filingDateRaw);
-                
-                // Check if the date is valid and within reasonable range (between 1900 and 2100)
-                if (!isNaN(parsedDate.getTime()) && 
-                    parsedDate.getFullYear() >= 1900 && 
-                    parsedDate.getFullYear() <= 2100) {
-                  filingDate = parsedDate;
-                } else {
-                  // Date is invalid or out of reasonable range
-                  console.log(`Invalid date value: ${filingDateRaw} - out of reasonable range`);
-                }
-              } catch (error) {
-                console.log(`Error parsing date: ${filingDateRaw} - ${error}`);
-              }
+            } catch (error) {
+              console.log(`Error parsing date: ${filingDateRaw} - ${error}`);
             }
           }
           
@@ -370,66 +264,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]);
           }
           
-          // Extract claim amounts with special handling for JAMS files
-          let claimAmount = null;
+          // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
+          const claimAmtConsumer = extractField(rowObj, [
+            'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
+            'consumer claim amount'
+          ]);
           
-          if (fileType === "JAMS") {
-            // For JAMS files, directly access the CLAIM AMOUNT column (column 19)
-            const jamsClaimAmount = rowObj['CLAIM AMOUNT'] || rowObj['Claim Amount'];
-            
-            if (jamsClaimAmount) {
-              // Check if claim amount is "Unknown" or empty
-              if (jamsClaimAmount === "Unknown" || jamsClaimAmount === "NA" || jamsClaimAmount === "") {
-                claimAmount = null;
-                console.log(`  Claim Amount: Unknown or NA`);
-              } else {
-                // Extract numeric values from the claim amount string
-                // This handles formats like "$50,000" or "USD 75,000.00"
-                const matches = String(jamsClaimAmount).match(/\$?[\d,]+(\.\d+)?/g);
-                if (matches && matches.length > 0) {
-                  // Parse as float (remove $ and commas)
-                  const value = parseFloat(matches[0].replace(/[$,]/g, ''));
-                  if (!isNaN(value)) {
-                    claimAmount = value.toString();
-                    console.log(`  Claim Amount: ${claimAmount} (from ${jamsClaimAmount})`);
-                  }
-                } else {
-                  // Non-numeric value found
-                  console.log(`  Non-numeric Claim Amount: ${jamsClaimAmount}`);
-                }
-              }
-            }
-          } else {
-            // Standard approach for AAA files
-            const claimAmtConsumer = extractField(rowObj, [
-              'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
-              'consumer claim amount'
-            ]);
-            
-            const claimAmtBusiness = extractField(rowObj, [
-              'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
-              'business claim amount'
-            ]);
-            
-            // Also check generic claim amount fields as fallback
-            const genericClaimAmount = extractField(rowObj, [
-              'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
-              'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
-            ]);
-            
-            // Calculate total claim amount by combining consumer and business claims
-            const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
-            const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
-            
-            if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
-              // Use the sum if we have either valid consumer or business claim
-              const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
-              const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
-              claimAmount = (validConsumerClaim + validBusinessClaim).toString();
-            } else if (genericClaimAmount) {
-              // Fallback to generic claim amount if provided
-              claimAmount = genericClaimAmount;
-            }
+          const claimAmtBusiness = extractField(rowObj, [
+            'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
+            'business claim amount'
+          ]);
+          
+          // Also check generic claim amount fields as fallback
+          const genericClaimAmount = extractField(rowObj, [
+            'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
+            'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
+          ]);
+          
+          // Calculate total claim amount by combining consumer and business claims
+          let claimAmount = null;
+          const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+          const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+          
+          if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
+            // Use the sum if we have either valid consumer or business claim
+            const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
+            const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
+            claimAmount = (validConsumerClaim + validBusinessClaim).toString();
+          } else if (genericClaimAmount) {
+            // Fallback to generic claim amount if provided
+            claimAmount = genericClaimAmount;
           }
           
           // Handle award amounts differently based on file type
@@ -533,94 +397,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
-          // Extract case type with specific handling for different file types
-          let caseType = null;
-          
-          if (fileType === "JAMS") {
-            // For JAMS files, use the "TYPE OF DISPUTE" column (column 8)
-            // Direct property access first
-            caseType = rowObj['TYPE OF DISPUTE'] || rowObj['Type of Dispute'];
-            
-            if (!caseType) {
-              // Fallback to extraction method
-              caseType = extractField(rowObj, [
-                'TYPE OF DISPUTE',
-                'Type of Dispute',
-                'type_of_dispute'
-              ]);
-              
-              // If still not found, look for column with dispute or employment in name
-              if (!caseType) {
-                const rowAsRecord = row as Record<string, any>;
-                const rowKeys = Object.keys(rowAsRecord);
-                
-                for (const key of rowKeys) {
-                  const keyLower = key.toLowerCase();
-                  if (keyLower.includes('dispute') || keyLower.includes('employment')) {
-                    const value = rowAsRecord[key];
-                    if (value && typeof value === 'string' && value.trim() !== '') {
-                      caseType = value;
-                      console.log(`JAMS file - found case type in column ${key}: ${caseType}`);
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-            
-            // Log case type for debugging
-            if (caseType) {
-              console.log(`  Case Type: ${caseType}`);
-            } else {
-              console.log(`  Case Type: Not found`);
-            }
-          } else {
-            // For AAA files, dispute type is usually labeled as such
-            caseType = extractField(rowObj, [
-              'dispute type', 
-              'disputetype', 
-              'dispute_type',
-              'case type',
-              'casetype',
-              'case_type',
-              'nature of dispute',
-              'nature_of_dispute',
-              'dispute category',
-              'dispute_category'
-            ]);
-            
-            // If we still don't have a case type, check for any column containing 'dispute' and 'type'
-            if (!caseType) {
-              const rowAsRecord = row as Record<string, any>;
-              const rowKeys = Object.keys(rowAsRecord);
-              
-              for (const key of rowKeys) {
-                const keyLower = key.toLowerCase();
-                if ((keyLower.includes('dispute') && keyLower.includes('type')) || 
-                    (keyLower.includes('case') && keyLower.includes('type'))) {
-                  const value = rowAsRecord[key];
-                  if (value && typeof value === 'string' && value.trim() !== '') {
-                    caseType = value;
-                    console.log(`AAA file - found case type in column ${key}: ${caseType}`);
-                    break;
-                  }
-                }
-              }
-            }
-          }
-          
-          // Log comprehensive case details for JAMS files
-          if (fileType === "JAMS") {
-            console.log(`JAMS file - processed case: ${caseId}`);
-            console.log(`  Respondent: ${respondentName || 'Not found'}`);
-            console.log(`  Arbitrator: ${arbitratorName || 'Not found'}`);
-            console.log(`  Filing Date: ${filingDate ? filingDate.toISOString() : 'Not found'}`);
-            console.log(`  Disposition: ${disposition || 'Not found'}`);
-            console.log(`  Case Type: ${caseType || 'Not found'}`);
-            console.log(`  Claim Amount: ${claimAmount || 'Not found'}`);
-            console.log(`  Award Amount: ${awardAmount || 'Not found'}`);
-          }
-          
           // Check for duplicates based on case ID
           const existingCase = await storage.getCaseById(caseId);
           
@@ -636,9 +412,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const hasDiscrepancies = !arbitratorName || !respondentName || !filingDate || !disposition;
           if (hasDiscrepancies) {
             discrepanciesFound++;
-            if (fileType === "JAMS") {
-              console.log(`  Data quality issues detected for case ${caseId}`);
-            }
           }
           
           // Create case record
@@ -652,7 +425,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             disposition,
             claimAmount,
             awardAmount,
-            caseType,
             sourceFile: fileName,
             hasDiscrepancies,
             rawData: JSON.stringify(row)
