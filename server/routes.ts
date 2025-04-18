@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import multer from "multer";
 import { read, utils } from "xlsx";
 import path from "path";
@@ -484,6 +486,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: `Failed to delete file: ${(error as Error).message}` });
+    }
+  });
+  
+  // Clear all data (files and cases)
+  app.delete("/api/clearAll", async (_req: Request, res: Response) => {
+    try {
+      // Execute SQL to truncate all tables and reset identity counters
+      await db.execute(sql`
+        TRUNCATE TABLE arbitration_cases RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE processed_files RESTART IDENTITY CASCADE;
+      `);
+      
+      res.json({ 
+        message: "All data has been cleared successfully",
+        status: "success"
+      });
+    } catch (error) {
+      console.error("Error clearing all data:", error);
+      res.status(500).json({ error: `Failed to clear all data: ${(error as Error).message}` });
     }
   });
   
