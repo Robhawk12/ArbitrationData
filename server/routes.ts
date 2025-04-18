@@ -159,9 +159,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Enhanced approach with more possible field names
           let caseId;
           
-          // For JAMS files, prioritize "Refno" column for case_id
+          // For JAMS files, prioritize "REFNO" column for case_id
           if (fileType === "JAMS") {
-            caseId = extractField(rowObj, ['refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
+            caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
                       extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                       `${fileType}-${Date.now()}-${recordsProcessed}`;
           } else {
@@ -233,8 +233,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // For JAMS files, ONLY use the "Result" column for disposition
           if (fileType === "JAMS") {
-            // For JAMS files, only check the Result column - nothing else
-            disposition = extractField(rowObj, ['result', 'Result']);
+            // For JAMS files, look for the specific RESULT column format from the JAMS Excel file
+            // The actual column name in the Excel file includes a linebreak and footnote
+            disposition = extractField(rowObj, [
+              'RESULT\r\n(See footnote 1 for "Dismissal\r\n Without Hearing")',
+              'RESULT(See footnote 1 for "Dismissal Without Hearing")',
+              'RESULT',
+              'Result'
+            ]);
           } else {
             // For AAA files, use standard disposition field names
             disposition = extractField(rowObj, [
