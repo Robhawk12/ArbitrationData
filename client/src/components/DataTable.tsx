@@ -130,7 +130,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       // Convert data to CSV
       const headers = [
         'Case ID', 'Arbitrator Name', 'Respondent', 'Consumer Attorney',
-        'Disposition', 'Claim Amount', 'Award Amount', 'Filing Date', 'Forum'
+        'Disposition', 'Claim Amount', 'Award Amount', 'Filing Date', 'Case Type', 'Forum'
       ];
       
       const rows = data.data.map((c: ArbitrationCase) => [
@@ -142,6 +142,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         c.claimAmount || '',
         c.awardAmount || '',
         c.filingDate ? new Date(c.filingDate).toLocaleDateString() : '',
+        c.caseType || '',
         c.forum
       ]);
       
