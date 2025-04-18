@@ -183,7 +183,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       <button
         key="page-1"
         className={`w-6 h-6 flex items-center justify-center rounded text-[8pt] ${
-          page === 1 ? 'bg-primary text-white' : 'border border-neutral-200 text-neutral-500'
+          page === 1 ? 'bg-[#217346] text-white' : 'border border-neutral-200 text-neutral-500'
         }`}
         onClick={() => handlePageChange(1)}
       >
@@ -210,7 +210,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         <button
           key={`page-${i}`}
           className={`w-6 h-6 flex items-center justify-center rounded text-[8pt] ${
-            page === i ? 'bg-primary text-white' : 'border border-neutral-200 text-neutral-500'
+            page === i ? 'bg-[#217346] text-white' : 'border border-neutral-200 text-neutral-500'
           }`}
           onClick={() => handlePageChange(i)}
         >
@@ -232,7 +232,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         <button
           key={`page-${pagination.totalPages}`}
           className={`w-6 h-6 flex items-center justify-center rounded text-[8pt] ${
-            page === pagination.totalPages ? 'bg-primary text-white' : 'border border-neutral-200 text-neutral-500'
+            page === pagination.totalPages ? 'bg-[#217346] text-white' : 'border border-neutral-200 text-neutral-500'
           }`}
           onClick={() => handlePageChange(pagination.totalPages)}
         >
@@ -291,16 +291,16 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       <div className="overflow-x-auto">
         <table className="data-table w-full border-collapse">
           <thead>
-            <tr className="bg-neutral-100">
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Case ID</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Arbitrator Name</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Respondent</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Consumer Attorney</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Disposition</th>
-              <th className="p-2 text-right font-semibold text-neutral-500 border-b border-neutral-200">Claim Amount</th>
-              <th className="p-2 text-right font-semibold text-neutral-500 border-b border-neutral-200">Award Amount</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Filing Date</th>
-              <th className="p-2 text-left font-semibold text-neutral-500 border-b border-neutral-200">Forum</th>
+            <tr className="bg-[#d6e9d9]">
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Case ID</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Arbitrator Name</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Respondent</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Consumer Attorney</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Disposition</th>
+              <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Claim Amount</th>
+              <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Award Amount</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Filing Date</th>
+              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Forum</th>
             </tr>
           </thead>
           <tbody>
