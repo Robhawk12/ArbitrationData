@@ -74,17 +74,88 @@ export class DatabaseStorage implements IStorage {
     let queryBuilder = db.select().from(arbitrationCases);
     
     if (filter) {
-      const lowerFilter = `%${filter.toLowerCase()}%`;
-      queryBuilder = queryBuilder.where(
-        or(
-          like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
-          like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
-          like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter)
-        )
-      );
+      // Process filter string to see if it contains our special filters
+      const filterParts = filter.split(' ');
+      const conditions: any[] = [];
+            
+      for (const part of filterParts) {
+        if (part.includes(':')) {
+          // Process specific field filter (format: "field:value")
+          const [field, ...valueParts] = part.split(':');
+          let value = valueParts.join(':');
+          
+          switch (field.toLowerCase()) {
+            case 'arbitrator':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'respondent':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'casetype':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'disposition':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'attorney':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'forum':
+              conditions.push(like(sql`lower(${arbitrationCases.forum})`, `%${value.toLowerCase()}%`));
+              break;
+            case 'date':
+              // Format: date:startDate:endDate (either can be empty)
+              const dateParts = value.split(':');
+              const startDate = dateParts[0] ? new Date(dateParts[0]) : null;
+              const endDate = dateParts[1] ? new Date(dateParts[1]) : null;
+              
+              if (startDate && !isNaN(startDate.getTime())) {
+                conditions.push(sql`${arbitrationCases.filingDate} >= ${startDate}`);
+              }
+              
+              if (endDate && !isNaN(endDate.getTime())) {
+                // Add one day to include the end date fully
+                const nextDay = new Date(endDate);
+                nextDay.setDate(nextDay.getDate() + 1);
+                conditions.push(sql`${arbitrationCases.filingDate} < ${nextDay}`);
+              }
+              break;
+            default:
+              // If not a special filter, treat it as a general search term
+              const lowerFilter = `%${part.toLowerCase()}%`;
+              conditions.push(
+                or(
+                  like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
+                  like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, lowerFilter)
+                )
+              );
+          }
+        } else if (part.trim()) {
+          // If it's a regular search term (not field:value format)
+          const lowerFilter = `%${part.toLowerCase()}%`;
+          conditions.push(
+            or(
+              like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
+              like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, lowerFilter)
+            )
+          );
+        }
+      }
+      
+      // Apply all conditions with AND
+      if (conditions.length > 0) {
+        queryBuilder = queryBuilder.where(and(...conditions));
+      }
     }
     
     // Execute the query with limit, offset and order
@@ -129,24 +200,97 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getCaseCount(filter?: string): Promise<number> {
-    // We'll use a raw SQL query to get the count
-    let countQuery = sql`SELECT COUNT(*) FROM ${arbitrationCases}`;
+    // Create a query builder for counting
+    let queryBuilder = db.select({ count: sql`count(*)` }).from(arbitrationCases);
     
     if (filter) {
-      const lowerFilter = `%${filter.toLowerCase()}%`;
-      countQuery = sql`
-        SELECT COUNT(*) FROM ${arbitrationCases}
-        WHERE lower(${arbitrationCases.caseId}) LIKE ${lowerFilter}
-        OR lower(${arbitrationCases.forum}) LIKE ${lowerFilter}
-        OR lower(COALESCE(${arbitrationCases.arbitratorName}, '')) LIKE ${lowerFilter}
-        OR lower(COALESCE(${arbitrationCases.respondentName}, '')) LIKE ${lowerFilter}
-        OR lower(COALESCE(${arbitrationCases.consumerAttorney}, '')) LIKE ${lowerFilter}
-        OR lower(COALESCE(${arbitrationCases.disposition}, '')) LIKE ${lowerFilter}
-      `;
+      // Process filter string to see if it contains our special filters
+      const filterParts = filter.split(' ');
+      const conditions: any[] = [];
+            
+      for (const part of filterParts) {
+        if (part.includes(':')) {
+          // Process specific field filter (format: "field:value")
+          const [field, ...valueParts] = part.split(':');
+          let value = valueParts.join(':');
+          
+          switch (field.toLowerCase()) {
+            case 'arbitrator':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'respondent':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'casetype':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'disposition':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'attorney':
+              conditions.push(like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, `%${value.toLowerCase()}%`));
+              break;
+            case 'forum':
+              conditions.push(like(sql`lower(${arbitrationCases.forum})`, `%${value.toLowerCase()}%`));
+              break;
+            case 'date':
+              // Format: date:startDate:endDate (either can be empty)
+              const dateParts = value.split(':');
+              const startDate = dateParts[0] ? new Date(dateParts[0]) : null;
+              const endDate = dateParts[1] ? new Date(dateParts[1]) : null;
+              
+              if (startDate && !isNaN(startDate.getTime())) {
+                conditions.push(sql`${arbitrationCases.filingDate} >= ${startDate}`);
+              }
+              
+              if (endDate && !isNaN(endDate.getTime())) {
+                // Add one day to include the end date fully
+                const nextDay = new Date(endDate);
+                nextDay.setDate(nextDay.getDate() + 1);
+                conditions.push(sql`${arbitrationCases.filingDate} < ${nextDay}`);
+              }
+              break;
+            default:
+              // If not a special filter, treat it as a general search term
+              const lowerFilter = `%${part.toLowerCase()}%`;
+              conditions.push(
+                or(
+                  like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
+                  like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter),
+                  like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, lowerFilter)
+                )
+              );
+          }
+        } else if (part.trim()) {
+          // If it's a regular search term (not field:value format)
+          const lowerFilter = `%${part.toLowerCase()}%`;
+          conditions.push(
+            or(
+              like(sql`lower(${arbitrationCases.caseId})`, lowerFilter),
+              like(sql`lower(${arbitrationCases.forum})`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.arbitratorName}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.respondentName}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.consumerAttorney}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.disposition}, ''))`, lowerFilter),
+              like(sql`lower(coalesce(${arbitrationCases.caseType}, ''))`, lowerFilter)
+            )
+          );
+        }
+      }
+      
+      // Apply all conditions with AND
+      if (conditions.length > 0) {
+        queryBuilder = queryBuilder.where(and(...conditions));
+      }
     }
     
-    const result = await db.execute(countQuery);
-    return Number(result.rows[0]?.count || 0);
+    // Execute the query and get count
+    const [result] = await queryBuilder;
+    return Number(result?.count || 0);
   }
   
   // Processed files methods

@@ -29,6 +29,18 @@ interface PaginationData {
   totalPages: number;
 }
 
+interface FilterCriteria {
+  arbitrator: string;
+  respondent: string;
+  caseType: string;
+  disposition: string; 
+  consumerAttorney: string;
+  respondentAttorney: string;
+  forum: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
 interface DataTableProps {
   filter?: string;
   refreshTrigger: number;
@@ -39,6 +51,18 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [searchValue, setSearchValue] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
+    arbitrator: "",
+    respondent: "",
+    caseType: "",
+    disposition: "",
+    consumerAttorney: "",
+    respondentAttorney: "",
+    forum: "",
+    dateFrom: "",
+    dateTo: ""
+  });
   
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -108,6 +132,73 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
     if (e.key === 'Enter') {
       handleSearch();
     }
+  };
+  
+  // Handle filter toggle
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
+  
+  // Handle filter change
+  const handleFilterChange = (field: keyof FilterCriteria, value: string) => {
+    setFilterCriteria(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  // Apply filters
+  const applyFilters = () => {
+    // Build an advanced filter query
+    const filterParts: string[] = [];
+    
+    if (filterCriteria.arbitrator) {
+      filterParts.push(`arbitrator:${filterCriteria.arbitrator}`);
+    }
+    
+    if (filterCriteria.respondent) {
+      filterParts.push(`respondent:${filterCriteria.respondent}`);
+    }
+    
+    if (filterCriteria.caseType) {
+      filterParts.push(`caseType:${filterCriteria.caseType}`);
+    }
+    
+    if (filterCriteria.disposition) {
+      filterParts.push(`disposition:${filterCriteria.disposition}`);
+    }
+    
+    if (filterCriteria.consumerAttorney) {
+      filterParts.push(`attorney:${filterCriteria.consumerAttorney}`);
+    }
+    
+    if (filterCriteria.forum) {
+      filterParts.push(`forum:${filterCriteria.forum}`);
+    }
+    
+    if (filterCriteria.dateFrom || filterCriteria.dateTo) {
+      const dateFilter = `date:${filterCriteria.dateFrom || ''}:${filterCriteria.dateTo || ''}`;
+      filterParts.push(dateFilter);
+    }
+    
+    const advancedFilter = filterParts.join(' ');
+    onSearch(advancedFilter);
+  };
+  
+  // Clear filters
+  const clearFilters = () => {
+    setFilterCriteria({
+      arbitrator: "",
+      respondent: "",
+      caseType: "",
+      disposition: "",
+      consumerAttorney: "",
+      respondentAttorney: "",
+      forum: "",
+      dateFrom: "",
+      dateTo: ""
+    });
+    onSearch("");
   };
   
   // Handle export
@@ -295,6 +386,17 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             </svg>
           </div>
           
+          {/* Filter Toggle Button */}
+          <button 
+            className="flex items-center space-x-1 text-[8pt] text-neutral-500 border border-neutral-200 rounded px-3 py-1"
+            onClick={toggleFilters}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+            </svg>
+            <span>Filter</span>
+          </button>
+          
           {/* Export Button */}
           <button 
             className="flex items-center space-x-1 text-[8pt] text-neutral-500 border border-neutral-200 rounded px-3 py-1"
@@ -307,6 +409,114 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           </button>
         </div>
       </div>
+      
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-[#f9fcfa] border border-[#e2f0e6] rounded-md p-3 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-[8pt]">
+          <div>
+            <label className="block text-neutral-500 mb-1">Arbitrator</label>
+            <input
+              type="text"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.arbitrator}
+              onChange={(e) => handleFilterChange('arbitrator', e.target.value)}
+              placeholder="Filter by arbitrator name"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Respondent</label>
+            <input
+              type="text"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.respondent}
+              onChange={(e) => handleFilterChange('respondent', e.target.value)}
+              placeholder="Filter by respondent name"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Case Type</label>
+            <input
+              type="text"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.caseType}
+              onChange={(e) => handleFilterChange('caseType', e.target.value)}
+              placeholder="Filter by case type"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Disposition</label>
+            <input
+              type="text"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.disposition}
+              onChange={(e) => handleFilterChange('disposition', e.target.value)}
+              placeholder="Filter by disposition"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Consumer Attorney</label>
+            <input
+              type="text"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.consumerAttorney}
+              onChange={(e) => handleFilterChange('consumerAttorney', e.target.value)}
+              placeholder="Filter by consumer attorney"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Forum</label>
+            <select
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.forum}
+              onChange={(e) => handleFilterChange('forum', e.target.value)}
+            >
+              <option value="">All Forums</option>
+              <option value="AAA">AAA</option>
+              <option value="JAMS">JAMS</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Filing Date From</label>
+            <input
+              type="date"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.dateFrom}
+              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-neutral-500 mb-1">Filing Date To</label>
+            <input
+              type="date"
+              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              value={filterCriteria.dateTo}
+              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+            />
+          </div>
+          
+          <div className="flex items-end space-x-2">
+            <button
+              className="px-3 py-1 bg-[#217346] text-white rounded text-[8pt] hover:bg-[#19603A]"
+              onClick={applyFilters}
+            >
+              Apply Filters
+            </button>
+            <button
+              className="px-3 py-1 border border-neutral-200 text-neutral-500 rounded text-[8pt] hover:bg-neutral-50"
+              onClick={clearFilters}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Table Container with horizontal scroll for mobile */}
       <div className="overflow-x-auto">
