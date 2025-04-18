@@ -20,7 +20,7 @@ import { z } from "zod";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit to handle large files
+    fileSize: 25 * 1024 * 1024, // 25MB limit (to accommodate 20MB+ files)
   },
   fileFilter: (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -130,14 +130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload and process Excel files
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
-      console.log("Upload request received");
-      
       if (!req.file) {
-        console.log("No file found in request");
         return res.status(400).json({ error: "No file uploaded" });
       }
-      
-      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
       
       const fileBuffer = req.file.buffer;
       const fileName = req.file.originalname;
@@ -456,8 +451,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "COMPLETED"
       });
       
-      console.log(`File processing completed: ${recordsProcessed} records processed, ${duplicatesFound} duplicates found, ${discrepanciesFound} with discrepancies`);
-      
       res.status(201).json({
         message: "File processed successfully",
         fileId: fileRecord.id,
@@ -468,15 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error("File upload error:", error);
-      console.error("Error details:", (error as Error).stack);
-      
-      // Attempt to get detailed error info
-      let errorMessage = (error as Error).message;
-      if ((error as any).code) {
-        errorMessage += ` (Code: ${(error as any).code})`;
-      }
-      
-      res.status(500).json({ error: `File processing failed: ${errorMessage}` });
+      res.status(500).json({ error: `File processing failed: ${(error as Error).message}` });
     }
   });
   

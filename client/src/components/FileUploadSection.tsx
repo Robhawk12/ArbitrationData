@@ -97,19 +97,16 @@ export default function FileUploadSection({
       return;
     }
     
-    // Validate file size (5KB - 50MB)
-    if (file.size < 5 * 1024) {
-      onFileError('File is too small. Min size is 5KB');
+    // Validate file size (5MB - 25MB)
+    if (file.size < 1024 * 1024) {
+      onFileError('File is too small. Min size is 1MB');
       return;
     }
     
-    if (file.size > 50 * 1024 * 1024) {
-      onFileError('File is too large. Max size is 50MB');
+    if (file.size > 25 * 1024 * 1024) {
+      onFileError('File is too large. Max size is 25MB');
       return;
     }
-    
-    // Log file upload attempt
-    console.log('Attempting to upload file:', file.name, 'Size:', (file.size / (1024 * 1024)).toFixed(2), 'MB');
     
     setIsUploading(true);
     setProcessingFile(file.name);
@@ -160,17 +157,9 @@ export default function FileUploadSection({
       };
       
       xhr.onerror = () => {
-        console.error("XHR error during file upload");
         setIsUploading(false);
         setProcessingFile(null);
-        onFileError('Network error occurred during file upload. Please try again or use a smaller file.');
-      };
-      
-      xhr.ontimeout = () => {
-        console.error("XHR timeout during file upload");
-        setIsUploading(false);
-        setProcessingFile(null);
-        onFileError('Upload timed out. Please try again with a smaller file or check your network connection.');
+        onFileError('Network error occurred during file upload');
       };
       
       xhr.open('POST', '/api/upload', true);
@@ -199,7 +188,7 @@ export default function FileUploadSection({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
             <p className="text-[9pt] text-neutral-400 mb-1">Drag and drop Excel files here or click to browse</p>
-            <p className="text-[8pt] text-neutral-300">Supported formats: .xlsx, .xls (up to 50MB)</p>
+            <p className="text-[8pt] text-neutral-300">Supported formats: .xlsx, .xls (5MB to 20MB+)</p>
             
             {/* Hidden file input */}
             <input
