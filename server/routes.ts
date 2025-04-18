@@ -231,17 +231,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Extract disposition with specific handling for JAMS files
           let disposition;
           
-          // For JAMS files, prioritize the "Result" column for disposition
+          // For JAMS files, ONLY use the "Result" column for disposition
           if (fileType === "JAMS") {
-            disposition = extractField(rowObj, ['result', 'Result']) || 
-                         extractField(rowObj, [
-                           'disposition', 'outcome', 'award_or_outcome', 'award or outcome', 
-                           'resolution', 'status', 'case_status', 'case status'
-                         ]);
+            // For JAMS files, only check the Result column - nothing else
+            disposition = extractField(rowObj, ['result', 'Result']);
           } else {
             // For AAA files, use standard disposition field names
             disposition = extractField(rowObj, [
-              'disposition', 'outcome', 'result', 'Result', 'award_or_outcome', 'award or outcome', 
+              'disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 
               'resolution', 'status', 'case_status', 'case status'
             ]);
           }
