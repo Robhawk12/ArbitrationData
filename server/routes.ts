@@ -494,12 +494,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("Clearing all data from database...");
       
-      // Execute SQL individually to ensure each statement runs
-      await db.execute(sql`TRUNCATE TABLE arbitration_cases RESTART IDENTITY CASCADE;`);
-      console.log("Cleared arbitration_cases table");
+      // Use DELETE instead of TRUNCATE for more reliable clearing
+      await db.execute(sql`DELETE FROM arbitration_cases;`);
+      console.log("Deleted all rows from arbitration_cases table");
       
-      await db.execute(sql`TRUNCATE TABLE processed_files RESTART IDENTITY CASCADE;`);
-      console.log("Cleared processed_files table");
+      await db.execute(sql`DELETE FROM processed_files;`);
+      console.log("Deleted all rows from processed_files table");
+      
+      // Reset the sequence counters
+      await db.execute(sql`ALTER SEQUENCE arbitration_cases_id_seq RESTART WITH 1;`);
+      await db.execute(sql`ALTER SEQUENCE processed_files_id_seq RESTART WITH 1;`);
+      console.log("Reset sequence counters");
       
       res.json({ 
         message: "All data has been cleared successfully",
