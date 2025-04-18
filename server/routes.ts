@@ -197,6 +197,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // For JAMS files, prioritize "REFNO" column for case_id
           if (fileType === "JAMS") {
+            // Print column names to help debugging
+            if (recordsProcessed < 1) {
+              console.log("JAMS file column names:", Object.keys(rowObj).join(", "));
+            }
+            
             caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
                       extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                       `${fileType}-${Date.now()}-${recordsProcessed}`;
@@ -209,10 +214,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const forum = fileType;
           
           // More comprehensive field mapping for AAA and JAMS formats
-          const arbitratorName = extractField(rowObj, [
-            'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
-            'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
-          ]);
+          let arbitratorName = null;
+          
+          if (fileType === "JAMS") {
+            // JAMS specific column name for arbitrator
+            arbitratorName = extractField(rowObj, [
+              'ARBITRATOR\r\nNAME', 'ARBITRATOR NAME', 'arbitrator name', 'arbitratorname', 'arbitrator_name'
+            ]);
+          } else {
+            // General arbitrator name fields
+            arbitratorName = extractField(rowObj, [
+              'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
+              'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
+            ]);
+          }
           
           // For AAA files specifically, the nonconsumer is the Respondent (Column A)
           // We prioritize 'nonconsumer' and related fields when looking for the respondent
@@ -229,35 +244,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ];
 
           // Get consumer attorney information
-          const consumerAttorney = extractField(rowObj, [
-            'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
-            'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
-          ]);
+          let consumerAttorney = null;
+          
+          if (fileType === "JAMS") {
+            // JAMS specific column for consumer attorney
+            consumerAttorney = extractField(rowObj, [
+              'CONSUMER\r\nATTORNEY', 'CONSUMER ATTORNEY', 'consumer attorney'
+            ]);
+          } else {
+            // General attorney fields
+            consumerAttorney = extractField(rowObj, [
+              'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
+              'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
+            ]);
+          }
           
           // Extract respondent name (primarily focusing on business/non-consumer entity)
-          let respondentName = extractField(rowObj, respondentFields);
+          let respondentName = null;
+          
+          if (fileType === "JAMS") {
+            // JAMS specific field for respondent
+            respondentName = extractField(rowObj, [
+              'RESPONDENT', 'respondent'
+            ]);
+          } else {
+            // Standard respondent fields
+            respondentName = extractField(rowObj, respondentFields);
+          }
           
           // Parse filing date - handles multiple formats
-          const filingDateRaw = extractField(rowObj, [
-            'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
-            'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
-          ]);
+          let filingDateRaw;
+          
+          if (fileType === "JAMS") {
+            // JAMS specific column for filing date
+            filingDateRaw = extractField(rowObj, [
+              'FILING\r\nDATE', 'FILING DATE', 'filing date'
+            ]);
+          } else {
+            // Standard filing date fields
+            filingDateRaw = extractField(rowObj, [
+              'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
+              'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
+            ]);
+          }
           
           // Handle date parsing safely
           let filingDate = null;
           if (filingDateRaw) {
             try {
-              // First try to parse the date normally
-              const parsedDate = new Date(filingDateRaw);
-              
-              // Check if the date is valid and within reasonable range (between 1900 and 2100)
-              if (!isNaN(parsedDate.getTime()) && 
-                  parsedDate.getFullYear() >= 1900 && 
-                  parsedDate.getFullYear() <= 2100) {
-                filingDate = parsedDate;
+              // Check if filingDateRaw is a number (Excel serialized date) or string
+              if (!isNaN(Number(filingDateRaw)) && String(filingDateRaw).length <= 10) {
+                // Don't try to parse purely numeric values as dates
+                // Those are likely case IDs or other numeric values, not dates
+                console.log(`Skipping numeric value for date: ${filingDateRaw}`);
               } else {
-                // Date is invalid or out of reasonable range
-                console.log(`Invalid date value: ${filingDateRaw} - out of reasonable range`);
+                // Try to parse as a date
+                const parsedDate = new Date(filingDateRaw);
+                
+                // Check if the date is valid and within reasonable range (between 1900 and 2100)
+                if (!isNaN(parsedDate.getTime()) && 
+                    parsedDate.getFullYear() >= 1900 && 
+                    parsedDate.getFullYear() <= 2100) {
+                  filingDate = parsedDate;
+                } else {
+                  // Date is invalid or out of reasonable range
+                  console.log(`Invalid date format: ${filingDateRaw}`);
+                }
               }
             } catch (error) {
               console.log(`Error parsing date: ${filingDateRaw} - ${error}`);
@@ -285,67 +337,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]);
           }
           
-          // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
-          const claimAmtConsumer = extractField(rowObj, [
-            'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
-            'consumer claim amount'
-          ]);
-          
-          const claimAmtBusiness = extractField(rowObj, [
-            'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
-            'business claim amount'
-          ]);
-          
-          // Also check generic claim amount fields as fallback
-          const genericClaimAmount = extractField(rowObj, [
-            'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
-            'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
-          ]);
-          
-          // Calculate total claim amount by combining consumer and business claims
+          // Extract and aggregate claim amounts 
           let claimAmount = null;
-          const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
-          const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
           
-          if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
-            // Use the sum if we have either valid consumer or business claim
-            const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
-            const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
-            claimAmount = (validConsumerClaim + validBusinessClaim).toString();
-          } else if (genericClaimAmount) {
-            // Fallback to generic claim amount if provided
-            claimAmount = genericClaimAmount;
+          if (fileType === "JAMS") {
+            // JAMS specific column for claim amount
+            const jamsClaimAmount = extractField(rowObj, [
+              'CLAIM\r\nAMOUNT', 'CLAIM AMOUNT', 'claim amount'
+            ]);
+            
+            if (jamsClaimAmount) {
+              // Use extractMultipleDollarValues to sum up multiple dollar values in JAMS claim amounts
+              claimAmount = extractMultipleDollarValues(jamsClaimAmount);
+            }
+          } else {
+            // Standard AAA claim amount extraction logic
+            const claimAmtConsumer = extractField(rowObj, [
+              'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
+              'consumer claim amount'
+            ]);
+            
+            const claimAmtBusiness = extractField(rowObj, [
+              'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
+              'business claim amount'
+            ]);
+            
+            // Also check generic claim amount fields as fallback
+            const genericClaimAmount = extractField(rowObj, [
+              'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
+              'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
+            ]);
+            
+            // Calculate total claim amount by combining consumer and business claims
+            const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+            const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+            
+            if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
+              // Use the sum if we have either valid consumer or business claim
+              const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
+              const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
+              claimAmount = (validConsumerClaim + validBusinessClaim).toString();
+            } else if (genericClaimAmount) {
+              // Fallback to generic claim amount if provided
+              claimAmount = genericClaimAmount;
+            }
           }
           
-          // Extract and aggregate award amounts (AWARD_AMT_CONSUMER + AWARD_AMT_BUSINESS)
-          const awardAmtConsumer = extractField(rowObj, [
-            'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
-            'consumer award amount'
-          ]);
-          
-          const awardAmtBusiness = extractField(rowObj, [
-            'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
-            'business award amount'
-          ]);
-          
-          // Also check generic award amount fields as fallback
-          const genericAwardColumns = [
-            'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
-            'award total', 'total award', 'monetary relief',
-            'monetary award', 'damages', 'compensation'
-          ];
-          
-          const genericAwardAmount = extractField(rowObj, genericAwardColumns);
-          
-          // Calculate total award amount by combining consumer and business awards
+          // Extract and aggregate award amounts
           let awardAmount = null;
           
-          // Special handling for JAMS files with multiple dollar amounts in award field
-          if (fileType === "JAMS" && genericAwardAmount) {
-            // Extract and sum all dollar values
-            awardAmount = extractMultipleDollarValues(genericAwardAmount);
+          if (fileType === "JAMS") {
+            // JAMS specific column for award amount
+            const jamsAwardAmount = extractField(rowObj, [
+              'AWARD\r\nAMOUNT', 'AWARD AMOUNT', 'award amount'
+            ]);
+            
+            if (jamsAwardAmount) {
+              // Use extractMultipleDollarValues to sum up multiple dollar values in JAMS award amounts
+              awardAmount = extractMultipleDollarValues(jamsAwardAmount);
+              console.log(`JAMS award amount: ${jamsAwardAmount} -> ${awardAmount}`);
+            }
           } else {
-            // Standard handling for AAA files
+            // Standard AAA award amount extraction logic
+            const awardAmtConsumer = extractField(rowObj, [
+              'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
+              'consumer award amount'
+            ]);
+            
+            const awardAmtBusiness = extractField(rowObj, [
+              'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
+              'business award amount'
+            ]);
+            
+            // Also check generic award amount fields as fallback
+            const genericAwardColumns = [
+              'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
+              'award total', 'total award', 'monetary relief',
+              'monetary award', 'damages', 'compensation'
+            ];
+            
+            const genericAwardAmount = extractField(rowObj, genericAwardColumns);
+            
+            // Calculate total award amount by combining consumer and business awards
             const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
             const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
             
