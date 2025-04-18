@@ -400,9 +400,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Extract case type (dispute type)
           let caseType = null;
           if (fileType === "JAMS") {
-            caseType = extractField(rowObj, ['TYPE OF DISPUTE', 'Type of Dispute']);
+            // For JAMS files, we need to look for the column with header "TYPE OF DISPUTE"
+            // This could be in "__EMPTY_7" or similar column based on Excel parsing
+            for (const key in rowObj) {
+              // Check if we have the TYPE OF DISPUTE directly
+              if (rowObj["TYPE OF DISPUTE"] !== undefined) {
+                caseType = String(rowObj["TYPE OF DISPUTE"]);
+                break;
+              }
+              // Try to find it in the __EMPTY_* columns
+              if (key.startsWith('__EMPTY_') && rowObj[key] === "TYPE OF DISPUTE") {
+                // The actual value would be in the same row, different column
+                // Find the corresponding data column by finding the next "__EMPTY_" column
+                const columnNumber = parseInt(key.replace('__EMPTY_', ''));
+                const nextColumnKey = `__EMPTY_${columnNumber + 1}`;
+                if (rowObj[nextColumnKey] !== undefined) {
+                  caseType = String(rowObj[nextColumnKey]);
+                  break;
+                }
+              }
+            }
+            
+            // If we couldn't find it that way, try another approach for JAMS files
+            if (!caseType) {
+              // Try other possible column names for case type in JAMS files
+              caseType = extractField(rowObj, ['__EMPTY_7', 'TYPE OF DISPUTE', 'Type of Dispute', 'CASE TYPE', 'Case Type']);
+            }
           } else {
-            caseType = extractField(rowObj, ['dispute type', 'dispute_type', 'case type', 'case_type']);
+            // For AAA files
+            caseType = extractField(rowObj, ['dispute type', 'dispute_type', 'case type', 'case_type', 'DISPUTE TYPE', 'CASE TYPE']);
           }
           
           // Check for duplicates based on case ID

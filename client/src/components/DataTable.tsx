@@ -14,6 +14,7 @@ interface ArbitrationCase {
   disposition: string | null;
   claimAmount: string | null;
   awardAmount: string | null;
+  caseType: string | null;
   status: string;
   sourceFile: string;
   processingDate: string;
