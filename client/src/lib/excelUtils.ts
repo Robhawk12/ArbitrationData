@@ -16,6 +16,7 @@ export const standardFields: StandardizedField[] = [
   { field: 'disposition', possibleNames: ['disposition', 'outcome', 'result', 'award_or_outcome', 'award or outcome', 'resolution', 'status', 'case_status', 'case status'], required: false },
   { field: 'claimAmount', possibleNames: ['claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 'amount_claimed', 'disputed amount', 'amount in dispute'], required: false },
   { field: 'awardAmount', possibleNames: ['award', 'award amount', 'awardamount', 'award_amount', 'amount', 'consumer award', 'award total', 'total award', 'monetary relief'], required: false },
+  { field: 'caseType', possibleNames: ['type of dispute', 'dispute type', 'case type', 'casetype', 'case_type', 'nature of dispute', 'dispute category', '__EMPTY_7'], required: false },
 ];
 
 // Read an Excel file buffer and return structured data

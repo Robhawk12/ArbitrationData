@@ -397,6 +397,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Extract case type with specific handling for different file types
+          let caseType = null;
+          
+          if (fileType === "JAMS") {
+            // For JAMS files, the "Type of Dispute" is often in column "__EMPTY_7" 
+            // or labeled specifically as "Type of Dispute"
+            caseType = extractField(rowObj, [
+              'Type of Dispute', 
+              'TYPE OF DISPUTE', 
+              'type_of_dispute',
+              '__EMPTY_7' // Special column in JAMS files
+            ]);
+            
+            // If we found a value in __EMPTY_7 but the column header is different
+            // in the current file, log the actual header to help with future mapping
+            if (!caseType && row.__EMPTY_7) {
+              caseType = row.__EMPTY_7;
+              console.log(`JAMS file - found case type in __EMPTY_7: ${caseType}`);
+            }
+          } else {
+            // For AAA files, dispute type is usually labeled as such
+            caseType = extractField(rowObj, [
+              'dispute type', 
+              'disputetype', 
+              'dispute_type',
+              'case type',
+              'casetype',
+              'case_type',
+              'nature of dispute',
+              'nature_of_dispute',
+              'dispute category',
+              'dispute_category'
+            ]);
+          }
+          
+          // If we still don't have a case type, check for any column containing 'dispute' and 'type'
+          if (!caseType) {
+            const rowAsRecord = row as Record<string, any>;
+            const rowKeys = Object.keys(rowAsRecord);
+            
+            for (const key of rowKeys) {
+              const keyLower = key.toLowerCase();
+              if ((keyLower.includes('dispute') && keyLower.includes('type')) || 
+                  (keyLower.includes('case') && keyLower.includes('type'))) {
+                caseType = rowAsRecord[key];
+                if (caseType) {
+                  console.log(`Found case type in column ${key}: ${caseType}`);
+                  break;
+                }
+              }
+            }
+          }
+          
           // Check for duplicates based on case ID
           const existingCase = await storage.getCaseById(caseId);
           
@@ -425,6 +478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             disposition,
             claimAmount,
             awardAmount,
+            caseType,
             sourceFile: fileName,
             hasDiscrepancies,
             rawData: JSON.stringify(row)
