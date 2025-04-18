@@ -104,10 +104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Determine if AAA or JAMS file based on filename for prioritization
       const isJAMS = fileName.toLowerCase().includes('jams');
-      const isAAA = fileName.toLowerCase().includes('aaa');
-      // If explicitly JAMS in filename, use that, otherwise check for AAA, or default to OTHER
-      const fileType = isJAMS ? "JAMS" : (isAAA ? "AAA" : "OTHER");
-      const priority = (fileType === "AAA") ? 1 : (fileType === "JAMS" ? 2 : 3); // AAA has highest priority
+      // If JAMS in filename, use that, otherwise default to AAA (there are only two forum types)
+      const fileType = isJAMS ? "JAMS" : "AAA";
+      const priority = (fileType === "AAA") ? 1 : 2; // AAA has highest priority
       
       // Check if file already processed
       const existingFile = await storage.getProcessedFileByName(fileName);

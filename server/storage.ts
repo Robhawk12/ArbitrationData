@@ -208,18 +208,18 @@ export class DatabaseStorage implements IStorage {
       .from(arbitrationCases);
     const totalCases = Number(totalResult?.count || 0);
     
-    // Get AAA cases count - use case-insensitive ILIKE to match all variations
+    // Get AAA cases count - use case-insensitive matching
     const [aaaResult] = await db
       .select({ count: sql`count(*)` })
       .from(arbitrationCases)
-      .where(sql`${arbitrationCases.forum} ILIKE 'AAA'`);
+      .where(sql`UPPER(${arbitrationCases.forum}) = 'AAA'`);
     const aaaCases = Number(aaaResult?.count || 0);
     
-    // Get JAMS cases count - use case-insensitive ILIKE to match all variations
+    // Get JAMS cases count - use case-insensitive matching
     const [jamsResult] = await db
       .select({ count: sql`count(*)` })
       .from(arbitrationCases)
-      .where(sql`${arbitrationCases.forum} ILIKE 'JAMS'`);
+      .where(sql`UPPER(${arbitrationCases.forum}) = 'JAMS'`);
     const jamsCases = Number(jamsResult?.count || 0);
     
     // Get duplicates count
