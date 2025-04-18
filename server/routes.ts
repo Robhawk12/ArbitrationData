@@ -264,6 +264,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]);
           }
           
+          // Extract case type with specific handling for each file type
+          let caseType = null;
+          
+          if (fileType === "JAMS") {
+            // For JAMS files, look for "Type of Dispute" column
+            caseType = extractField(rowObj, [
+              'Type of Dispute', 
+              'TypeOfDispute', 
+              'TYPE OF DISPUTE',
+              'type_of_dispute'
+            ]);
+            console.log(`JAMS file - found case type: ${caseType}`);
+          } else {
+            // For AAA files, look for "dispute type" column
+            caseType = extractField(rowObj, [
+              'dispute type',
+              'disputetype',
+              'DISPUTE TYPE',
+              'TYPEDISPUTE', 
+              'dispute_type',
+              'case type',
+              'casetype'
+            ]);
+            console.log(`AAA file - found case type in column: ${caseType}`);
+          }
+          
           // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
           const claimAmtConsumer = extractField(rowObj, [
             'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
@@ -425,6 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             disposition,
             claimAmount,
             awardAmount,
+            caseType,
             sourceFile: fileName,
             hasDiscrepancies,
             rawData: JSON.stringify(row)
