@@ -186,7 +186,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let duplicatesFound = 0;
       let discrepanciesFound = 0;
       
-      for (const row of jsonData) {
+      // Check for header rows (rows where column names match cell values)
+      // This is important for JAMS files which sometimes include headers as data
+      let processedData = [...jsonData]; // Create a copy to potentially filter
+      
+      if (processedData.length > 0) {
+        // Check the first row to see if it contains headers
+        const firstRow = processedData[0] as Record<string, any>;
+        if (firstRow) {
+          const keys = Object.keys(firstRow);
+          const headerMatches = keys.filter(key => {
+            const value = String(firstRow[key] || '').trim();
+            const keyName = String(key).trim();
+            return value === keyName || 
+                  value.replace(/\r?\n/g, ' ').trim() === keyName.replace(/\r?\n/g, ' ').trim() ||
+                  value.toLowerCase() === keyName.toLowerCase();
+          }).length;
+          
+          // If a significant number of columns match their header names, this is likely a header row
+          if (headerMatches > keys.length * 0.4) {
+            console.log("Detected header row in data, skipping it");
+            processedData = processedData.slice(1);
+          }
+        }
+      }
+      
+      for (const row of processedData) {
         try {
           // Cast row to Record<string, any> for type safety
           const rowObj = row as Record<string, any>;
@@ -200,19 +225,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Print column names to help debugging for the first row
             if (recordsProcessed < 1) {
               console.log("JAMS file column names:", Object.keys(rowObj).join(", "));
-              
-              // Check if there's a header row (a row where most values are equal to the column names)
-              // This is a common issue with Excel imports where the header row is included
-              const columnCount = Object.keys(rowObj).length;
-              const headerMatchCount = Object.entries(rowObj).filter(([key, value]) => {
-                return String(key).toLowerCase() === String(value).toLowerCase();
-              }).length;
-              
-              // If over 70% of the columns match their values, this is likely a header row
-              if (headerMatchCount > columnCount * 0.7) {
-                console.log("Skipping header row");
-                continue; // Skip this row entirely
-              }
             }
             
             caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
@@ -285,9 +297,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let respondentName = null;
           
           if (fileType === "JAMS") {
-            // JAMS specific field for respondent
+            // JAMS specific field for respondent (business respondent)
+            // For JAMS files, the NON-CONSUMER column contains the business/respondent
             respondentName = extractField(rowObj, [
-              'RESPONDENT', 'respondent'
+              'NON-CONSUMER\r\nBUSINESS', 'NON-CONSUMER BUSINESS', 'NON-CONSUMER', 'non-consumer',
+              'RESPONDENT', 'respondent', 'business', 'business respondent'
             ]);
           } else {
             // Standard respondent fields
