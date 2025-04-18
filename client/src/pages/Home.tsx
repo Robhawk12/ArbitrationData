@@ -58,6 +58,12 @@ export default function Home() {
         title: "Data Cleared Successfully",
         message: "All data has been removed from the database."
       });
+      
+      // Reload the page after a short delay to allow the notification to be shown
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      
       return;
     }
     
@@ -75,6 +81,11 @@ export default function Home() {
         message: `Processed ${result.recordsProcessed} records with no duplicates.`
       });
     }
+    
+    // Reload the page after a short delay to allow the notification to be shown
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
   
   // Handle file processing error
