@@ -342,7 +342,14 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                   <td className="p-2 text-neutral-500">{arbitrationCase.caseId}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.arbitratorName || ''}</td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.respondentName || ''}</td>
-                  <td className="p-2 text-neutral-500">{arbitrationCase.consumerAttorney || ''}</td>
+                  <td className="p-2 text-neutral-500" title={arbitrationCase.consumerAttorney || ''}>
+                    {arbitrationCase.consumerAttorney ? 
+                      (arbitrationCase.consumerAttorney.length > 50 
+                        ? `${arbitrationCase.consumerAttorney.substring(0, 50)}...` 
+                        : arbitrationCase.consumerAttorney) 
+                      : ''
+                    }
+                  </td>
                   <td className="p-2 text-neutral-500">{arbitrationCase.disposition || ''}</td>
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.claimAmount)}</td>
                   <td className="p-2 text-neutral-500 text-right">{formatAmount(arbitrationCase.awardAmount)}</td>
