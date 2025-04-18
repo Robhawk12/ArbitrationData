@@ -197,14 +197,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // For JAMS files, prioritize "REFNO" column for case_id
           if (fileType === "JAMS") {
-            // Print column names to help debugging
+            // Print column names to help debugging for the first row
             if (recordsProcessed < 1) {
               console.log("JAMS file column names:", Object.keys(rowObj).join(", "));
+              
+              // Check if there's a header row (a row where most values are equal to the column names)
+              // This is a common issue with Excel imports where the header row is included
+              const columnCount = Object.keys(rowObj).length;
+              const headerMatchCount = Object.entries(rowObj).filter(([key, value]) => {
+                return String(key).toLowerCase() === String(value).toLowerCase();
+              }).length;
+              
+              // If over 70% of the columns match their values, this is likely a header row
+              if (headerMatchCount > columnCount * 0.7) {
+                console.log("Skipping header row");
+                continue; // Skip this row entirely
+              }
             }
             
             caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
                       extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                       `${fileType}-${Date.now()}-${recordsProcessed}`;
+                      
+            // Debug log for the first few rows
+            if (recordsProcessed < 3) {
+              console.log(`JAMS row ${recordsProcessed} caseId: ${caseId}`);
+              // Print a few of the row values to see what's in each field
+              for (const [key, value] of Object.entries(rowObj).slice(0, 5)) {
+                console.log(`  ${key}: ${value}`);
+              }
+            }
           } else {
             // For AAA files, use standard case_id field names
             caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
@@ -292,23 +314,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let filingDate = null;
           if (filingDateRaw) {
             try {
-              // Check if filingDateRaw is a number (Excel serialized date) or string
+              // Handle different date formats that might come from Excel
+              // 1. Check if it's a numeric Excel date (days since 1/1/1900)
               if (!isNaN(Number(filingDateRaw)) && String(filingDateRaw).length <= 10) {
-                // Don't try to parse purely numeric values as dates
-                // Those are likely case IDs or other numeric values, not dates
-                console.log(`Skipping numeric value for date: ${filingDateRaw}`);
-              } else {
-                // Try to parse as a date
-                const parsedDate = new Date(filingDateRaw);
-                
-                // Check if the date is valid and within reasonable range (between 1900 and 2100)
-                if (!isNaN(parsedDate.getTime()) && 
-                    parsedDate.getFullYear() >= 1900 && 
-                    parsedDate.getFullYear() <= 2100) {
-                  filingDate = parsedDate;
+                // Don't try to parse purely numeric values that could be case IDs
+                if (fileType === "JAMS" && Number(filingDateRaw) > 30000 && Number(filingDateRaw) < 50000) {
+                  // This is likely an Excel date (days since 1/1/1900)
+                  const excelEpoch = new Date(1900, 0, 1);
+                  // Excel has a leap year bug where it counts 1900 as a leap year, so we subtract 1 for dates after 2/28/1900
+                  const daysToAdd = Number(filingDateRaw) > 60 ? Number(filingDateRaw) - 1 : Number(filingDateRaw);
+                  const dateValue = new Date(excelEpoch);
+                  dateValue.setDate(excelEpoch.getDate() + daysToAdd - 1); // -1 because Excel starts at day 1, not 0
+                  filingDate = dateValue;
+                  console.log(`Converted Excel date: ${filingDateRaw} -> ${filingDate.toISOString()}`);
                 } else {
-                  // Date is invalid or out of reasonable range
-                  console.log(`Invalid date format: ${filingDateRaw}`);
+                  // Don't try to parse purely numeric values as dates if they're not in Excel date range
+                  // Those are likely case IDs or other numeric values, not dates
+                  console.log(`Skipping numeric value for date: ${filingDateRaw}`);
+                }
+              } else {
+                // 2. Try standard date format parsing
+                // a. Try MM/DD/YYYY format (common in US-based Excel files)
+                if (filingDateRaw.includes('/')) {
+                  const [month, day, year] = filingDateRaw.split('/').map(p => parseInt(p, 10));
+                  if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                    // Adjust for 2-digit years (assuming 20xx for years < 50, 19xx for years >= 50)
+                    const fullYear = year < 100 ? (year >= 50 ? 1900 + year : 2000 + year) : year;
+                    const parsedDate = new Date(fullYear, month - 1, day);
+                    
+                    if (!isNaN(parsedDate.getTime())) {
+                      filingDate = parsedDate;
+                      console.log(`Parsed date from MM/DD/YYYY: ${filingDateRaw} -> ${filingDate.toISOString()}`);
+                    }
+                  }
+                } 
+                
+                // b. Try standard date parsing if the above didn't work
+                if (!filingDate) {
+                  const parsedDate = new Date(filingDateRaw);
+                  
+                  // Check if the date is valid and within reasonable range (between 1900 and 2100)
+                  if (!isNaN(parsedDate.getTime()) && 
+                      parsedDate.getFullYear() >= 1900 && 
+                      parsedDate.getFullYear() <= 2100) {
+                    filingDate = parsedDate;
+                    console.log(`Parsed standard date: ${filingDateRaw} -> ${filingDate.toISOString()}`);
+                  } else {
+                    // Date is invalid or out of reasonable range
+                    console.log(`Invalid date format: ${filingDateRaw}`);
+                  }
                 }
               }
             } catch (error) {
@@ -570,14 +624,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Enhanced helper function to extract fields with different possible names
   function extractField(row: Record<string, any>, possibleNames: string[]): string | null {
-    // Try direct exact match first
+    // Step 1: Try direct exact match first
     for (const name of possibleNames) {
       if (row[name] !== undefined) {
         return String(row[name]);
       }
     }
     
-    // Try case-insensitive exact match
+    // Step 2: Try case-insensitive exact match
     const keys = Object.keys(row);
     for (const name of possibleNames) {
       const matchingKey = keys.find(key => key.toLowerCase() === name.toLowerCase());
@@ -586,38 +640,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // Try fuzzy matching - look for keys that contain our search terms
+    // Step 3: Try exact column match with linebreak/whitespace trimming
+    // This is especially important for Excel files where column names may contain linebreaks
+    for (const name of possibleNames) {
+      const normalizedName = name.replace(/\r?\n/g, ' ').trim();
+      const matchingKey = keys.find(key => {
+        const normalizedKey = key.replace(/\r?\n/g, ' ').trim();
+        return normalizedKey === normalizedName;
+      });
+      
+      if (matchingKey && row[matchingKey] !== undefined) {
+        return String(row[matchingKey]);
+      }
+    }
+    
+    // Step 4: For JAMS files specifically, do a more careful case-insensitive match 
+    // matching only column names, not column contents
+    for (const name of possibleNames) {
+      if (name.length < 4) continue; // Skip short names
+      
+      const normalizedSearchName = name.toLowerCase().replace(/\r?\n/g, ' ').trim();
+      
+      const matchingKey = keys.find(key => {
+        const normalizedKey = key.toLowerCase().replace(/\r?\n/g, ' ').trim();
+        return normalizedKey === normalizedSearchName;
+      });
+      
+      if (matchingKey && row[matchingKey] !== undefined) {
+        return String(row[matchingKey]);
+      }
+    }
+    
+    // Step 5: Try fuzzy matching as a last resort, but be more conservative
+    // and only match on column names, not column contents
     for (const name of possibleNames) {
       // Skip very short names (less than 4 chars) to avoid false matches
       if (name.length < 4) continue;
       
-      const nameLower = name.toLowerCase();
-      // Find keys that contain our search term
+      const nameLower = name.toLowerCase().replace(/\r?\n/g, ' ').trim();
+      // Find keys that contain our search term, but be more strict
       const fuzzyMatch = keys.find(key => {
-        const keyLower = key.toLowerCase();
-        return keyLower.includes(nameLower) || nameLower.includes(keyLower);
+        const keyLower = key.toLowerCase().replace(/\r?\n/g, ' ').trim();
+        // Only match if the key contains the entire search term
+        return keyLower.includes(nameLower);
       });
       
       if (fuzzyMatch && row[fuzzyMatch] !== undefined) {
         return String(row[fuzzyMatch]);
-      }
-    }
-    
-    // Advanced match for column headers that might have spaces, underscores, etc.
-    for (const name of possibleNames) {
-      // Skip very short names to avoid false matches
-      if (name.length < 4) continue;
-      
-      // Normalize the search term - remove spaces, underscores, etc.
-      const normalizedName = name.toLowerCase().replace(/[_\s-]/g, '');
-      
-      const advancedMatch = keys.find(key => {
-        const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, '');
-        return normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey);
-      });
-      
-      if (advancedMatch && row[advancedMatch] !== undefined) {
-        return String(row[advancedMatch]);
       }
     }
     
