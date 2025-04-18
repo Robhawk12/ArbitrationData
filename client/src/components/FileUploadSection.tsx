@@ -351,7 +351,12 @@ export default function FileUploadSection({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClearAllData} className="bg-error text-white hover:bg-error/90">
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleClearAllData();
+              }} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Clear Data
             </AlertDialogAction>
           </AlertDialogFooter>
