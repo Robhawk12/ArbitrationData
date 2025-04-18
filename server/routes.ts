@@ -157,9 +157,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Extract and standardize fields
           // Enhanced approach with more possible field names
-          const caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
-                        `${fileType}-${Date.now()}-${recordsProcessed}`;
-                        
+          let caseId;
+          
+          // For JAMS files, prioritize "Refno" column for case_id
+          if (fileType === "JAMS") {
+            caseId = extractField(rowObj, ['refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
+                      extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
+                      `${fileType}-${Date.now()}-${recordsProcessed}`;
+          } else {
+            // For AAA files, use standard case_id field names
+            caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
+                      `${fileType}-${Date.now()}-${recordsProcessed}`;
+          }
+          
           const forum = fileType;
           
           // More comprehensive field mapping for AAA and JAMS formats
