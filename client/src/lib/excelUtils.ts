@@ -57,83 +57,35 @@ export function extractField(row: any, possibleNames: string[]): string | null {
 
 // Detect if a file is likely AAA or JAMS based on content and filename
 export function detectFileSource(fileName: string, sampleData: any[]): 'AAA' | 'JAMS' {
-  // First check filename for obvious indicators
-  const filenameLower = fileName.toLowerCase();
-  if (filenameLower.includes('aaa') || filenameLower.includes('american arbitration')) {
+  // Check filename first
+  if (fileName.toLowerCase().includes('aaa')) {
     return 'AAA';
   }
-  if (filenameLower.includes('jams')) {
+  
+  if (fileName.toLowerCase().includes('jams')) {
     return 'JAMS';
   }
   
-  // If filename doesn't provide a clear answer, check the data
+  // Check content patterns if available
   if (sampleData && sampleData.length > 0) {
-    // Get all keys for analysis from the first few rows
-    const rowsToCheck = Math.min(3, sampleData.length);
-    const allKeys = new Set<string>();
+    const firstRow = sampleData[0];
     
-    for (let i = 0; i < rowsToCheck; i++) {
-      if (sampleData[i]) {
-        Object.keys(sampleData[i]).forEach(key => allKeys.add(key));
-      }
-    }
+    // Look for indicators in the data structure
+    const keys = Object.keys(firstRow).map(k => k.toLowerCase());
     
-    const keys = Array.from(allKeys);
-    const keysUpper = keys.map(k => k.toUpperCase());
-    
-    // Check for AAA-specific column patterns
-    if (keys.some(k => k.toUpperCase() === 'NONCONSUMER') || 
-        keys.some(k => k.toUpperCase() === 'NAME_CONSUMER_ATTORNEY')) {
-      console.log("Detected AAA file by column patterns");
+    // AAA typically includes these terms
+    if (keys.some(k => k.includes('aaa') || k.includes('american arbitration'))) {
       return 'AAA';
     }
     
-    // Check for JAMS-specific column patterns
-    // For JAMS files, check for column names like REFNO, RESULT, etc.
-    // Handle cases where column names have linebreaks or footnotes
-    const jamsIndicators = [
-      'REFNO', 
-      'ARBITRATOR NAME', 
-      'CONSUMER ATTORNEY',
-      'RESULT',
-      'CLAIM AMOUNT',
-      'AWARD AMOUNT'
-    ];
-    
-    // Check for column names that match JAMS patterns
-    // Handle variations with linebreaks and whitespace
-    const normalizedKeys = keys.map(k => k.replace(/\r?\n/g, ' ').toUpperCase().trim());
-    
-    const hasJamsColumns = jamsIndicators.some(indicator => 
-      normalizedKeys.some(key => key.includes(indicator))
-    );
-    
-    if (hasJamsColumns) {
-      console.log("Detected JAMS file by column patterns");
+    // JAMS typically includes these terms
+    if (keys.some(k => k.includes('jams') || k.includes('judicial arbitration'))) {
       return 'JAMS';
-    }
-    
-    // Check for columns containing "JAMS" or "Judicial Arbitration"
-    if (keys.some(k => k.toUpperCase().includes('JAMS')) || 
-        keys.some(k => k.toUpperCase().includes('JUDICIAL ARBITRATION'))) {
-      console.log("Detected JAMS file by company name in columns");
-      return 'JAMS';
-    }
-    
-    // Check for REFNO column which is specific to JAMS files
-    for (const row of sampleData.slice(0, rowsToCheck)) {
-      if (row['REFNO'] !== undefined || 
-          row['Refno'] !== undefined || 
-          row['refno'] !== undefined) {
-        console.log("Detected JAMS file by REFNO column");
-        return 'JAMS';
-      }
     }
   }
   
-  // Default to JAMS if we can't determine for this file since it's more common
-  console.log("Couldn't determine file source, defaulting to JAMS");
-  return 'JAMS';
+  // Default to AAA if we can't determine
+  return 'AAA';
 }
 
 // Identify potential duplicates by case ID or other fields

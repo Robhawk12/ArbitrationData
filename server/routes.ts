@@ -186,32 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let duplicatesFound = 0;
       let discrepanciesFound = 0;
       
-      // Check for header rows (rows where column names match cell values)
-      // This is important for JAMS files which sometimes include headers as data
-      let processedData = [...jsonData]; // Create a copy to potentially filter
-      
-      if (processedData.length > 0) {
-        // Check the first row to see if it contains headers
-        const firstRow = processedData[0] as Record<string, any>;
-        if (firstRow) {
-          const keys = Object.keys(firstRow);
-          const headerMatches = keys.filter(key => {
-            const value = String(firstRow[key] || '').trim();
-            const keyName = String(key).trim();
-            return value === keyName || 
-                  value.replace(/\r?\n/g, ' ').trim() === keyName.replace(/\r?\n/g, ' ').trim() ||
-                  value.toLowerCase() === keyName.toLowerCase();
-          }).length;
-          
-          // If a significant number of columns match their header names, this is likely a header row
-          if (headerMatches > keys.length * 0.4) {
-            console.log("Detected header row in data, skipping it");
-            processedData = processedData.slice(1);
-          }
-        }
-      }
-      
-      for (const row of processedData) {
+      for (const row of jsonData) {
         try {
           // Cast row to Record<string, any> for type safety
           const rowObj = row as Record<string, any>;
@@ -222,23 +197,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // For JAMS files, prioritize "REFNO" column for case_id
           if (fileType === "JAMS") {
-            // Print column names to help debugging for the first row
-            if (recordsProcessed < 1) {
-              console.log("JAMS file column names:", Object.keys(rowObj).join(", "));
-            }
-            
             caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
                       extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
                       `${fileType}-${Date.now()}-${recordsProcessed}`;
-                      
-            // Debug log for the first few rows
-            if (recordsProcessed < 3) {
-              console.log(`JAMS row ${recordsProcessed} caseId: ${caseId}`);
-              // Print a few of the row values to see what's in each field
-              for (const [key, value] of Object.entries(rowObj).slice(0, 5)) {
-                console.log(`  ${key}: ${value}`);
-              }
-            }
           } else {
             // For AAA files, use standard case_id field names
             caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
@@ -248,20 +209,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const forum = fileType;
           
           // More comprehensive field mapping for AAA and JAMS formats
-          let arbitratorName = null;
-          
-          if (fileType === "JAMS") {
-            // JAMS specific column name for arbitrator
-            arbitratorName = extractField(rowObj, [
-              'ARBITRATOR\r\nNAME', 'ARBITRATOR NAME', 'arbitrator name', 'arbitratorname', 'arbitrator_name'
-            ]);
-          } else {
-            // General arbitrator name fields
-            arbitratorName = extractField(rowObj, [
-              'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
-              'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
-            ]);
-          }
+          const arbitratorName = extractField(rowObj, [
+            'arbitrator', 'arbitrator name', 'arbitratorname', 'arbitrator_name', 
+            'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
+          ]);
           
           // For AAA files specifically, the nonconsumer is the Respondent (Column A)
           // We prioritize 'nonconsumer' and related fields when looking for the respondent
@@ -278,106 +229,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ];
 
           // Get consumer attorney information
-          let consumerAttorney = null;
-          
-          if (fileType === "JAMS") {
-            // JAMS specific column for consumer attorney
-            consumerAttorney = extractField(rowObj, [
-              'CONSUMER\r\nATTORNEY', 'CONSUMER ATTORNEY', 'consumer attorney'
-            ]);
-          } else {
-            // General attorney fields
-            consumerAttorney = extractField(rowObj, [
-              'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
-              'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
-            ]);
-          }
+          const consumerAttorney = extractField(rowObj, [
+            'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
+            'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
+          ]);
           
           // Extract respondent name (primarily focusing on business/non-consumer entity)
-          let respondentName = null;
-          
-          if (fileType === "JAMS") {
-            // JAMS specific field for respondent (business respondent)
-            // For JAMS files, the NON-CONSUMER column contains the business/respondent
-            respondentName = extractField(rowObj, [
-              'NON-CONSUMER\r\nBUSINESS', 'NON-CONSUMER BUSINESS', 'NON-CONSUMER', 'non-consumer',
-              'RESPONDENT', 'respondent', 'business', 'business respondent'
-            ]);
-          } else {
-            // Standard respondent fields
-            respondentName = extractField(rowObj, respondentFields);
-          }
+          let respondentName = extractField(rowObj, respondentFields);
           
           // Parse filing date - handles multiple formats
-          let filingDateRaw;
-          
-          if (fileType === "JAMS") {
-            // JAMS specific column for filing date
-            filingDateRaw = extractField(rowObj, [
-              'FILING\r\nDATE', 'FILING DATE', 'filing date'
-            ]);
-          } else {
-            // Standard filing date fields
-            filingDateRaw = extractField(rowObj, [
-              'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
-              'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
-            ]);
-          }
+          const filingDateRaw = extractField(rowObj, [
+            'filing date', 'filingdate', 'filing_date', 'date filed', 'date_filed', 
+            'date', 'initiated', 'initiated on', 'date initiated', 'submission date'
+          ]);
           
           // Handle date parsing safely
           let filingDate = null;
           if (filingDateRaw) {
             try {
-              // Handle different date formats that might come from Excel
-              // 1. Check if it's a numeric Excel date (days since 1/1/1900)
-              if (!isNaN(Number(filingDateRaw)) && String(filingDateRaw).length <= 10) {
-                // Don't try to parse purely numeric values that could be case IDs
-                if (fileType === "JAMS" && Number(filingDateRaw) > 30000 && Number(filingDateRaw) < 50000) {
-                  // This is likely an Excel date (days since 1/1/1900)
-                  const excelEpoch = new Date(1900, 0, 1);
-                  // Excel has a leap year bug where it counts 1900 as a leap year, so we subtract 1 for dates after 2/28/1900
-                  const daysToAdd = Number(filingDateRaw) > 60 ? Number(filingDateRaw) - 1 : Number(filingDateRaw);
-                  const dateValue = new Date(excelEpoch);
-                  dateValue.setDate(excelEpoch.getDate() + daysToAdd - 1); // -1 because Excel starts at day 1, not 0
-                  filingDate = dateValue;
-                  console.log(`Converted Excel date: ${filingDateRaw} -> ${filingDate.toISOString()}`);
-                } else {
-                  // Don't try to parse purely numeric values as dates if they're not in Excel date range
-                  // Those are likely case IDs or other numeric values, not dates
-                  console.log(`Skipping numeric value for date: ${filingDateRaw}`);
-                }
+              // First try to parse the date normally
+              const parsedDate = new Date(filingDateRaw);
+              
+              // Check if the date is valid and within reasonable range (between 1900 and 2100)
+              if (!isNaN(parsedDate.getTime()) && 
+                  parsedDate.getFullYear() >= 1900 && 
+                  parsedDate.getFullYear() <= 2100) {
+                filingDate = parsedDate;
               } else {
-                // 2. Try standard date format parsing
-                // a. Try MM/DD/YYYY format (common in US-based Excel files)
-                if (filingDateRaw.includes('/')) {
-                  const [month, day, year] = filingDateRaw.split('/').map(p => parseInt(p, 10));
-                  if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
-                    // Adjust for 2-digit years (assuming 20xx for years < 50, 19xx for years >= 50)
-                    const fullYear = year < 100 ? (year >= 50 ? 1900 + year : 2000 + year) : year;
-                    const parsedDate = new Date(fullYear, month - 1, day);
-                    
-                    if (!isNaN(parsedDate.getTime())) {
-                      filingDate = parsedDate;
-                      console.log(`Parsed date from MM/DD/YYYY: ${filingDateRaw} -> ${filingDate.toISOString()}`);
-                    }
-                  }
-                } 
-                
-                // b. Try standard date parsing if the above didn't work
-                if (!filingDate) {
-                  const parsedDate = new Date(filingDateRaw);
-                  
-                  // Check if the date is valid and within reasonable range (between 1900 and 2100)
-                  if (!isNaN(parsedDate.getTime()) && 
-                      parsedDate.getFullYear() >= 1900 && 
-                      parsedDate.getFullYear() <= 2100) {
-                    filingDate = parsedDate;
-                    console.log(`Parsed standard date: ${filingDateRaw} -> ${filingDate.toISOString()}`);
-                  } else {
-                    // Date is invalid or out of reasonable range
-                    console.log(`Invalid date format: ${filingDateRaw}`);
-                  }
-                }
+                // Date is invalid or out of reasonable range
+                console.log(`Invalid date value: ${filingDateRaw} - out of reasonable range`);
               }
             } catch (error) {
               console.log(`Error parsing date: ${filingDateRaw} - ${error}`);
@@ -405,88 +285,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]);
           }
           
-          // Extract and aggregate claim amounts 
-          let claimAmount = null;
+          // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
+          const claimAmtConsumer = extractField(rowObj, [
+            'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
+            'consumer claim amount'
+          ]);
           
-          if (fileType === "JAMS") {
-            // JAMS specific column for claim amount
-            const jamsClaimAmount = extractField(rowObj, [
-              'CLAIM\r\nAMOUNT', 'CLAIM AMOUNT', 'claim amount'
-            ]);
-            
-            if (jamsClaimAmount) {
-              // Use extractMultipleDollarValues to sum up multiple dollar values in JAMS claim amounts
-              claimAmount = extractMultipleDollarValues(jamsClaimAmount);
-            }
-          } else {
-            // Standard AAA claim amount extraction logic
-            const claimAmtConsumer = extractField(rowObj, [
-              'claim_amt_consumer', 'claimamtconsumer', 'claim amt consumer', 'consumer claim', 
-              'consumer claim amount'
-            ]);
-            
-            const claimAmtBusiness = extractField(rowObj, [
-              'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
-              'business claim amount'
-            ]);
-            
-            // Also check generic claim amount fields as fallback
-            const genericClaimAmount = extractField(rowObj, [
-              'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
-              'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
-            ]);
-            
-            // Calculate total claim amount by combining consumer and business claims
-            const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
-            const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
-            
-            if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
-              // Use the sum if we have either valid consumer or business claim
-              const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
-              const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
-              claimAmount = (validConsumerClaim + validBusinessClaim).toString();
-            } else if (genericClaimAmount) {
-              // Fallback to generic claim amount if provided
-              claimAmount = genericClaimAmount;
-            }
+          const claimAmtBusiness = extractField(rowObj, [
+            'claim_amt_business', 'claimamtbusiness', 'claim amt business', 'business claim', 
+            'business claim amount'
+          ]);
+          
+          // Also check generic claim amount fields as fallback
+          const genericClaimAmount = extractField(rowObj, [
+            'claim amount', 'claimamount', 'claim_amount', 'claim', 'amount claimed', 
+            'amount_claimed', 'disputed amount', 'amount in dispute', 'initial demand'
+          ]);
+          
+          // Calculate total claim amount by combining consumer and business claims
+          let claimAmount = null;
+          const consumerClaimNum = claimAmtConsumer ? parseFloat(claimAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+          const businessClaimNum = claimAmtBusiness ? parseFloat(claimAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+          
+          if (!isNaN(consumerClaimNum) || !isNaN(businessClaimNum)) {
+            // Use the sum if we have either valid consumer or business claim
+            const validConsumerClaim = !isNaN(consumerClaimNum) ? consumerClaimNum : 0;
+            const validBusinessClaim = !isNaN(businessClaimNum) ? businessClaimNum : 0;
+            claimAmount = (validConsumerClaim + validBusinessClaim).toString();
+          } else if (genericClaimAmount) {
+            // Fallback to generic claim amount if provided
+            claimAmount = genericClaimAmount;
           }
           
-          // Extract and aggregate award amounts
+          // Extract and aggregate award amounts (AWARD_AMT_CONSUMER + AWARD_AMT_BUSINESS)
+          const awardAmtConsumer = extractField(rowObj, [
+            'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
+            'consumer award amount'
+          ]);
+          
+          const awardAmtBusiness = extractField(rowObj, [
+            'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
+            'business award amount'
+          ]);
+          
+          // Also check generic award amount fields as fallback
+          const genericAwardColumns = [
+            'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
+            'award total', 'total award', 'monetary relief',
+            'monetary award', 'damages', 'compensation'
+          ];
+          
+          const genericAwardAmount = extractField(rowObj, genericAwardColumns);
+          
+          // Calculate total award amount by combining consumer and business awards
           let awardAmount = null;
           
-          if (fileType === "JAMS") {
-            // JAMS specific column for award amount
-            const jamsAwardAmount = extractField(rowObj, [
-              'AWARD\r\nAMOUNT', 'AWARD AMOUNT', 'award amount'
-            ]);
-            
-            if (jamsAwardAmount) {
-              // Use extractMultipleDollarValues to sum up multiple dollar values in JAMS award amounts
-              awardAmount = extractMultipleDollarValues(jamsAwardAmount);
-              console.log(`JAMS award amount: ${jamsAwardAmount} -> ${awardAmount}`);
-            }
+          // Special handling for JAMS files with multiple dollar amounts in award field
+          if (fileType === "JAMS" && genericAwardAmount) {
+            // Extract and sum all dollar values
+            awardAmount = extractMultipleDollarValues(genericAwardAmount);
           } else {
-            // Standard AAA award amount extraction logic
-            const awardAmtConsumer = extractField(rowObj, [
-              'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
-              'consumer award amount'
-            ]);
-            
-            const awardAmtBusiness = extractField(rowObj, [
-              'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
-              'business award amount'
-            ]);
-            
-            // Also check generic award amount fields as fallback
-            const genericAwardColumns = [
-              'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
-              'award total', 'total award', 'monetary relief',
-              'monetary award', 'damages', 'compensation'
-            ];
-            
-            const genericAwardAmount = extractField(rowObj, genericAwardColumns);
-            
-            // Calculate total award amount by combining consumer and business awards
+            // Standard handling for AAA files
             const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
             const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
             
@@ -638,14 +497,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Enhanced helper function to extract fields with different possible names
   function extractField(row: Record<string, any>, possibleNames: string[]): string | null {
-    // Step 1: Try direct exact match first
+    // Try direct exact match first
     for (const name of possibleNames) {
       if (row[name] !== undefined) {
         return String(row[name]);
       }
     }
     
-    // Step 2: Try case-insensitive exact match
+    // Try case-insensitive exact match
     const keys = Object.keys(row);
     for (const name of possibleNames) {
       const matchingKey = keys.find(key => key.toLowerCase() === name.toLowerCase());
@@ -654,53 +513,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // Step 3: Try exact column match with linebreak/whitespace trimming
-    // This is especially important for Excel files where column names may contain linebreaks
-    for (const name of possibleNames) {
-      const normalizedName = name.replace(/\r?\n/g, ' ').trim();
-      const matchingKey = keys.find(key => {
-        const normalizedKey = key.replace(/\r?\n/g, ' ').trim();
-        return normalizedKey === normalizedName;
-      });
-      
-      if (matchingKey && row[matchingKey] !== undefined) {
-        return String(row[matchingKey]);
-      }
-    }
-    
-    // Step 4: For JAMS files specifically, do a more careful case-insensitive match 
-    // matching only column names, not column contents
-    for (const name of possibleNames) {
-      if (name.length < 4) continue; // Skip short names
-      
-      const normalizedSearchName = name.toLowerCase().replace(/\r?\n/g, ' ').trim();
-      
-      const matchingKey = keys.find(key => {
-        const normalizedKey = key.toLowerCase().replace(/\r?\n/g, ' ').trim();
-        return normalizedKey === normalizedSearchName;
-      });
-      
-      if (matchingKey && row[matchingKey] !== undefined) {
-        return String(row[matchingKey]);
-      }
-    }
-    
-    // Step 5: Try fuzzy matching as a last resort, but be more conservative
-    // and only match on column names, not column contents
+    // Try fuzzy matching - look for keys that contain our search terms
     for (const name of possibleNames) {
       // Skip very short names (less than 4 chars) to avoid false matches
       if (name.length < 4) continue;
       
-      const nameLower = name.toLowerCase().replace(/\r?\n/g, ' ').trim();
-      // Find keys that contain our search term, but be more strict
+      const nameLower = name.toLowerCase();
+      // Find keys that contain our search term
       const fuzzyMatch = keys.find(key => {
-        const keyLower = key.toLowerCase().replace(/\r?\n/g, ' ').trim();
-        // Only match if the key contains the entire search term
-        return keyLower.includes(nameLower);
+        const keyLower = key.toLowerCase();
+        return keyLower.includes(nameLower) || nameLower.includes(keyLower);
       });
       
       if (fuzzyMatch && row[fuzzyMatch] !== undefined) {
         return String(row[fuzzyMatch]);
+      }
+    }
+    
+    // Advanced match for column headers that might have spaces, underscores, etc.
+    for (const name of possibleNames) {
+      // Skip very short names to avoid false matches
+      if (name.length < 4) continue;
+      
+      // Normalize the search term - remove spaces, underscores, etc.
+      const normalizedName = name.toLowerCase().replace(/[_\s-]/g, '');
+      
+      const advancedMatch = keys.find(key => {
+        const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, '');
+        return normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey);
+      });
+      
+      if (advancedMatch && row[advancedMatch] !== undefined) {
+        return String(row[advancedMatch]);
       }
     }
     
