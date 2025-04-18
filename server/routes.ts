@@ -159,11 +159,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Enhanced approach with more possible field names
           let caseId;
           
-          // For JAMS files, prioritize "REFNO" column for case_id
+          // For JAMS files, ONLY use "REFNO" column for case_id (primary key)
           if (fileType === "JAMS") {
-            caseId = extractField(rowObj, ['REFNO', 'refno', 'Refno', 'ref no', 'ref_no', 'reference number', 'referencenumber', 'reference_number']) || 
-                      extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
-                      `${fileType}-${Date.now()}-${recordsProcessed}`;
+            // Only look for exact match on REFNO for JAMS files
+            caseId = extractField(rowObj, ['REFNO']) || 
+                    extractField(rowObj, ['refno', 'Refno', 'ref no', 'ref_no', 'reference number']) || 
+                    `${fileType}-${Date.now()}-${recordsProcessed}`;
+            
+            // Log the found case ID for debugging
+            console.log(`JAMS file - found case ID: ${caseId}`);
           } else {
             // For AAA files, use standard case_id field names
             caseId = extractField(rowObj, ['case_id', 'caseid', 'case #', 'case number', 'id', 'case_number', 'case id', 'case.id']) || 
@@ -178,13 +182,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'arbitrator_assigned', 'arbitrator assigned', 'adjudicator', 'neutral'
           ]);
           
-          // For AAA files specifically, the nonconsumer is the Respondent (Column A)
-          // We prioritize 'nonconsumer' and related fields when looking for the respondent
-          const respondentFields = [
-            'nonconsumer', 'non-consumer', 'non consumer', 'non_consumer', 
-            'business', 'business name', 'business_name', 'company', 'company name',
-            'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant'
-          ];
+          // Get appropriate respondent name based on file type
+          let respondentName;
+          
+          if (fileType === "JAMS") {
+            // For JAMS files, ONLY use the "NONCONSUMER PARTY" column for Respondent
+            respondentName = extractField(rowObj, ['NONCONSUMER PARTY']) || 
+                            extractField(rowObj, ['NONCONSUMER', 'nonconsumer party', 'non-consumer party']);
+            
+            // Log the found respondent name for debugging
+            console.log(`JAMS file - found respondent: ${respondentName}`);
+          } else {
+            // For AAA files, use broader field searching
+            const respondentFields = [
+              'nonconsumer', 'non-consumer', 'non consumer', 'non_consumer', 
+              'business', 'business name', 'business_name', 'company', 'company name',
+              'respondent', 'respondent name', 'respondentname', 'respondent_name', 'defendant'
+            ];
+            respondentName = extractField(rowObj, respondentFields);
+          }
           
           // For consumer, we focus on consumer-related fields and avoid using "claimant"
           const consumerFields = [
@@ -197,9 +213,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'name_consumer_attorney', 'consumer_attorney', 'consumer attorney',
             'claimant attorney', 'claimant_attorney', 'attorney_name', 'attorney name'
           ]);
-          
-          // Extract respondent name (primarily focusing on business/non-consumer entity)
-          let respondentName = extractField(rowObj, respondentFields);
           
           // Parse filing date - handles multiple formats
           const filingDateRaw = extractField(rowObj, [
@@ -281,73 +294,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
             claimAmount = genericClaimAmount;
           }
           
-          // Extract and aggregate award amounts (AWARD_AMT_CONSUMER + AWARD_AMT_BUSINESS)
-          const awardAmtConsumer = extractField(rowObj, [
-            'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
-            'consumer award amount'
-          ]);
-          
-          const awardAmtBusiness = extractField(rowObj, [
-            'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
-            'business award amount'
-          ]);
-          
-          // Also check generic award amount fields as fallback
-          const genericAwardColumns = [
-            'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
-            'award total', 'total award', 'monetary relief',
-            'monetary award', 'damages', 'compensation'
-          ];
-          
-          const genericAwardAmount = extractField(rowObj, genericAwardColumns);
-          
-          // Calculate total award amount by combining consumer and business awards
+          // Handle award amounts differently based on file type
           let awardAmount = null;
-          const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
-          const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
           
-          if (!isNaN(consumerAwardNum) || !isNaN(businessAwardNum)) {
-            // Use the sum if we have either valid consumer or business award
-            const validConsumerAward = !isNaN(consumerAwardNum) ? consumerAwardNum : 0;
-            const validBusinessAward = !isNaN(businessAwardNum) ? businessAwardNum : 0;
-            awardAmount = (validConsumerAward + validBusinessAward).toString();
-          } else if (genericAwardAmount) {
-            // Fallback to generic award amount if provided
-            awardAmount = genericAwardAmount;
-          }
-          
-          // If still no award found, search for any award-related columns
-          if (!awardAmount) {
-            let totalAward = 0;
-            let foundAward = false;
+          if (fileType === "JAMS") {
+            // For JAMS files, look specifically for the AWARD column
+            const jamsAward = extractField(rowObj, ['AWARD', 'Award']);
             
-            // Look for any award-related columns and sum their values
-            const rowAsRecord = row as Record<string, any>;
-            const rowKeys = Object.keys(rowAsRecord);
-            
-            for (const key of rowKeys) {
-              const keyLower = key.toLowerCase();
-              if (keyLower.includes('award') || keyLower.includes('damage') || keyLower.includes('compensation')) {
-                const value = rowAsRecord[key];
-                if (value) {
-                  // Try to extract numeric value
-                  const numericValue = String(value).replace(/[^0-9.-]+/g, "");
-                  if (!isNaN(parseFloat(numericValue))) {
-                    totalAward += parseFloat(numericValue);
-                    foundAward = true;
+            if (jamsAward) {
+              // Check if award is "NA" or "Non-Monetary Award" - set to null
+              if (jamsAward === "NA" || jamsAward.includes("Non-Monetary")) {
+                awardAmount = null;
+                console.log(`JAMS file - award is NA or Non-Monetary: ${jamsAward}`);
+              } else {
+                // Extract all numeric values and add them together
+                const matches = jamsAward.match(/\$?[\d,]+(\.\d+)?/g);
+                if (matches && matches.length > 0) {
+                  // Sum all numeric values found
+                  let totalAward = 0;
+                  for (const match of matches) {
+                    // Remove $ and commas, then parse as float
+                    const value = parseFloat(match.replace(/[$,]/g, ''));
+                    if (!isNaN(value)) {
+                      totalAward += value;
+                    }
                   }
+                  awardAmount = totalAward.toString();
+                  console.log(`JAMS file - found award amount: ${awardAmount} from ${jamsAward}`);
                 }
               }
             }
-            
-            if (foundAward) {
-              awardAmount = totalAward.toString();
-            }
           } else {
-            // Clean existing award amount to ensure it's numeric
-            const numericValue = awardAmount.replace(/[^0-9.-]+/g, "");
-            if (!isNaN(parseFloat(numericValue))) {
-              awardAmount = numericValue;
+            // For AAA files, use the original approach with consumer/business awards
+            const awardAmtConsumer = extractField(rowObj, [
+              'award_amt_consumer', 'awardamtconsumer', 'award amt consumer', 'consumer award', 
+              'consumer award amount'
+            ]);
+            
+            const awardAmtBusiness = extractField(rowObj, [
+              'award_amt_business', 'awardamtbusiness', 'award amt business', 'business award', 
+              'business award amount'
+            ]);
+            
+            // Also check generic award amount fields as fallback
+            const genericAwardColumns = [
+              'award', 'award amount', 'awardamount', 'award_amount', 'amount', 
+              'award total', 'total award', 'monetary relief',
+              'monetary award', 'damages', 'compensation'
+            ];
+            
+            const genericAwardAmount = extractField(rowObj, genericAwardColumns);
+            
+            // Calculate total award amount by combining consumer and business awards
+            const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+            const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
+            
+            if (!isNaN(consumerAwardNum) || !isNaN(businessAwardNum)) {
+              // Use the sum if we have either valid consumer or business award
+              const validConsumerAward = !isNaN(consumerAwardNum) ? consumerAwardNum : 0;
+              const validBusinessAward = !isNaN(businessAwardNum) ? businessAwardNum : 0;
+              awardAmount = (validConsumerAward + validBusinessAward).toString();
+            } else if (genericAwardAmount) {
+              // Fallback to generic award amount if provided
+              awardAmount = genericAwardAmount;
+            }
+            
+            // If still no award found, search for any award-related columns
+            if (!awardAmount) {
+              let totalAward = 0;
+              let foundAward = false;
+              
+              // Look for any award-related columns and sum their values
+              const rowAsRecord = row as Record<string, any>;
+              const rowKeys = Object.keys(rowAsRecord);
+              
+              for (const key of rowKeys) {
+                const keyLower = key.toLowerCase();
+                if (keyLower.includes('award') || keyLower.includes('damage') || keyLower.includes('compensation')) {
+                  const value = rowAsRecord[key];
+                  if (value) {
+                    // Try to extract numeric value
+                    const numericValue = String(value).replace(/[^0-9.-]+/g, "");
+                    if (!isNaN(parseFloat(numericValue))) {
+                      totalAward += parseFloat(numericValue);
+                      foundAward = true;
+                    }
+                  }
+                }
+              }
+              
+              if (foundAward) {
+                awardAmount = totalAward.toString();
+              }
+            } else {
+              // Clean existing award amount to ensure it's numeric
+              const numericValue = awardAmount.replace(/[^0-9.-]+/g, "");
+              if (!isNaN(parseFloat(numericValue))) {
+                awardAmount = numericValue;
+              }
             }
           }
           
