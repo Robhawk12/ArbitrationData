@@ -273,9 +273,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               'Type of Dispute', 
               'TypeOfDispute', 
               'TYPE OF DISPUTE',
-              'type_of_dispute'
+              'type_of_dispute',
+              'NATURE OF DISPUTE',
+              'nature_of_dispute',
+              'NatureOfDispute',
+              'DISPUTE TYPE',
+              'dispute_type'
             ]);
-            console.log(`JAMS file - found case type: ${caseType}`);
+            
+            // If case type wasn't found, use a default value rather than the case ID
+            if (caseType === null) {
+              caseType = "Consumer"; // Default to Consumer for JAMS files when type not found
+              console.log(`JAMS file - No case type found, defaulting to: ${caseType}`);
+            } else {
+              console.log(`JAMS file - found case type: ${caseType}`);
+            }
           } else {
             // For AAA files, look for "dispute type" column
             caseType = extractField(rowObj, [
@@ -283,11 +295,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               'disputetype',
               'DISPUTE TYPE',
               'TYPEDISPUTE', 
-              'dispute_type',
-              'case type',
-              'casetype'
+              'dispute_type'
             ]);
-            console.log(`AAA file - found case type in column: ${caseType}`);
+            
+            if (caseType === null) {
+              caseType = "Other"; // Default for AAA files when type not found
+              console.log(`AAA file - No case type found, defaulting to: Other`);
+            } else {
+              console.log(`AAA file - found case type in column: ${caseType}`);
+            }
           }
           
           // Extract and aggregate claim amounts (CLAIM_AMT_CONSUMER + CLAIM_AMT_BUSINESS)
