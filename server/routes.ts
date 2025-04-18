@@ -31,42 +31,6 @@ const upload = multer({
   }
 });
 
-// Helper function to extract and sum multiple dollar values from a string
-function extractMultipleDollarValues(input: string): string | null {
-  if (!input) return null;
-  
-  // Check for non-monetary entries with no dollar values
-  if (input.toLowerCase().includes('non-monetary') && !input.includes('$')) {
-    return 'Non-Monetary';
-  }
-  
-  if (input.toLowerCase() === 'na' || input.toLowerCase() === 'n/a') {
-    return 'N/A';
-  }
-  
-  // Find all dollar amounts in the input string
-  const dollarRegex = /\$[\d,]+(\.\d+)?/g;
-  const matches = input.match(dollarRegex);
-  
-  if (!matches || matches.length === 0) {
-    // No dollar values found
-    return input;
-  }
-  
-  // Extract and sum all dollar amounts
-  let totalAmount = 0;
-  for (const match of matches) {
-    // Remove $ and commas, then parse to float
-    const amountStr = match.replace('$', '').replace(/,/g, '');
-    const amount = parseFloat(amountStr);
-    if (!isNaN(amount)) {
-      totalAmount += amount;
-    }
-  }
-  
-  return totalAmount > 0 ? totalAmount.toString() : null;
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // prefix all routes with /api
   
@@ -339,30 +303,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Calculate total award amount by combining consumer and business awards
           let awardAmount = null;
+          const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
+          const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
           
-          // Special handling for JAMS files with multiple dollar amounts in award field
-          if (fileType === "JAMS" && genericAwardAmount) {
-            // Extract and sum all dollar values
-            awardAmount = extractMultipleDollarValues(genericAwardAmount);
-          } else {
-            // Standard handling for AAA files
-            const consumerAwardNum = awardAmtConsumer ? parseFloat(awardAmtConsumer.replace(/[^0-9.-]+/g, "")) : 0;
-            const businessAwardNum = awardAmtBusiness ? parseFloat(awardAmtBusiness.replace(/[^0-9.-]+/g, "")) : 0;
-            
-            if (!isNaN(consumerAwardNum) || !isNaN(businessAwardNum)) {
-              // Use the sum if we have either valid consumer or business award
-              const validConsumerAward = !isNaN(consumerAwardNum) ? consumerAwardNum : 0;
-              const validBusinessAward = !isNaN(businessAwardNum) ? businessAwardNum : 0;
-              awardAmount = (validConsumerAward + validBusinessAward).toString();
-            } else if (genericAwardAmount) {
-              // Simple numeric extraction for generic award amount
-              const numericValue = genericAwardAmount.replace(/[^0-9.-]+/g, "");
-              if (!isNaN(parseFloat(numericValue))) {
-                awardAmount = numericValue;
-              } else {
-                awardAmount = genericAwardAmount;
-              }
-            }
+          if (!isNaN(consumerAwardNum) || !isNaN(businessAwardNum)) {
+            // Use the sum if we have either valid consumer or business award
+            const validConsumerAward = !isNaN(consumerAwardNum) ? consumerAwardNum : 0;
+            const validBusinessAward = !isNaN(businessAwardNum) ? businessAwardNum : 0;
+            awardAmount = (validConsumerAward + validBusinessAward).toString();
+          } else if (genericAwardAmount) {
+            // Fallback to generic award amount if provided
+            awardAmount = genericAwardAmount;
           }
           
           // If still no award found, search for any award-related columns
@@ -379,20 +330,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (keyLower.includes('award') || keyLower.includes('damage') || keyLower.includes('compensation')) {
                 const value = rowAsRecord[key];
                 if (value) {
-                  if (fileType === "JAMS") {
-                    // For JAMS, use the dollar value extraction helper
-                    const extractedValue = extractMultipleDollarValues(String(value));
-                    if (extractedValue && !isNaN(parseFloat(extractedValue))) {
-                      totalAward += parseFloat(extractedValue);
-                      foundAward = true;
-                    }
-                  } else {
-                    // For other files, simple extraction
-                    const numericValue = String(value).replace(/[^0-9.-]+/g, "");
-                    if (!isNaN(parseFloat(numericValue))) {
-                      totalAward += parseFloat(numericValue);
-                      foundAward = true;
-                    }
+                  // Try to extract numeric value
+                  const numericValue = String(value).replace(/[^0-9.-]+/g, "");
+                  if (!isNaN(parseFloat(numericValue))) {
+                    totalAward += parseFloat(numericValue);
+                    foundAward = true;
                   }
                 }
               }
@@ -400,6 +342,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (foundAward) {
               awardAmount = totalAward.toString();
+            }
+          } else {
+            // Clean existing award amount to ensure it's numeric
+            const numericValue = awardAmount.replace(/[^0-9.-]+/g, "");
+            if (!isNaN(parseFloat(numericValue))) {
+              awardAmount = numericValue;
             }
           }
           
