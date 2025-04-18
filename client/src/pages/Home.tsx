@@ -51,7 +51,17 @@ export default function Home() {
     // Refresh summary data
     refetchSummary();
     
-    // Add appropriate notification
+    // Check if this was a data clear operation
+    if (result.message.includes('cleared') || result.message.includes('cleared all data')) {
+      addNotification({
+        type: "success",
+        title: "Data Cleared Successfully",
+        message: "All data has been removed from the database."
+      });
+      return;
+    }
+    
+    // Add appropriate notification for file processing
     if (result.duplicatesFound > 0) {
       addNotification({
         type: "warning",

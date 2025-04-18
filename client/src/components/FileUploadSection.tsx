@@ -104,15 +104,22 @@ export default function FileUploadSection({
   
   const handleClearAllData = async () => {
     try {
-      await apiRequest('DELETE', '/api/clearAll');
-      refetchFiles();
-      onFileProcessed({
-        message: 'All data has been cleared successfully',
-        recordsProcessed: 0,
-        duplicatesFound: 0
-      });
-      setShowClearConfirmation(false);
+      console.log("Clearing all data...");
+      const response = await apiRequest('DELETE', '/api/clearAll');
+      console.log("Clear data response:", response);
+      
+      // Ensure we get a fresh reload of data
+      setTimeout(() => {
+        refetchFiles();
+        onFileProcessed({
+          message: 'All data has been cleared successfully',
+          recordsProcessed: 0,
+          duplicatesFound: 0
+        });
+        setShowClearConfirmation(false);
+      }, 500);
     } catch (error) {
+      console.error("Clear data error:", error);
       onFileError(`Failed to clear all data: ${(error as Error).message}`);
       setShowClearConfirmation(false);
     }

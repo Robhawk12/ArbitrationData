@@ -492,16 +492,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Clear all data (files and cases)
   app.delete("/api/clearAll", async (_req: Request, res: Response) => {
     try {
-      // Execute SQL to truncate all tables and reset identity counters
-      await db.execute(sql`
-        TRUNCATE TABLE arbitration_cases RESTART IDENTITY CASCADE;
-        TRUNCATE TABLE processed_files RESTART IDENTITY CASCADE;
-      `);
+      console.log("Clearing all data from database...");
+      
+      // Execute SQL individually to ensure each statement runs
+      await db.execute(sql`TRUNCATE TABLE arbitration_cases RESTART IDENTITY CASCADE;`);
+      console.log("Cleared arbitration_cases table");
+      
+      await db.execute(sql`TRUNCATE TABLE processed_files RESTART IDENTITY CASCADE;`);
+      console.log("Cleared processed_files table");
       
       res.json({ 
         message: "All data has been cleared successfully",
         status: "success"
       });
+      console.log("Data clear operation completed successfully");
     } catch (error) {
       console.error("Error clearing all data:", error);
       res.status(500).json({ error: `Failed to clear all data: ${(error as Error).message}` });
