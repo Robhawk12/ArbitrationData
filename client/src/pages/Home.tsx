@@ -5,6 +5,8 @@ import DataTable from "@/components/DataTable";
 import ProcessingSummary from "@/components/ProcessingSummary";
 import NotificationSystem from "@/components/NotificationSystem";
 import NlpQueryPanel from "@/components/NlpQueryPanel";
+import Navigation from "@/components/Navigation";
+import { TabsContent } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 
 interface Notification {
@@ -108,29 +110,51 @@ export default function Home() {
       <AppHeader />
       
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <FileUploadSection 
-              onFileProcessed={handleFileProcessed}
-              onFileError={handleFileError} 
-            />
-            
-            <DataTable 
-              filter={searchFilter}
-              refreshTrigger={tableRefreshTrigger}
-              onSearch={handleSearch}
-            />
-            
-            <ProcessingSummary 
-              summary={summaryData as any} 
-              refreshTrigger={tableRefreshTrigger}
-            />
-          </div>
+        <Navigation>
+          {/* NLP Query Tab */}
+          <TabsContent value="query" className="mt-4">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="w-full bg-white rounded-lg shadow-sm p-6">
+                <NlpQueryPanel className="w-full" />
+              </div>
+              
+              <div className="w-full">
+                <DataTable 
+                  filter={searchFilter}
+                  refreshTrigger={tableRefreshTrigger}
+                  onSearch={handleSearch}
+                />
+              </div>
+            </div>
+          </TabsContent>
           
-          <div className="lg:col-span-1">
-            <NlpQueryPanel className="sticky top-6" />
-          </div>
-        </div>
+          {/* Data Ingestion Tab */}
+          <TabsContent value="ingestion" className="mt-4">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="w-full">
+                <FileUploadSection 
+                  onFileProcessed={handleFileProcessed}
+                  onFileError={handleFileError} 
+                />
+              </div>
+              
+              <div className="w-full">
+                <ProcessingSummary 
+                  summary={summaryData as any} 
+                  refreshTrigger={tableRefreshTrigger}
+                />
+              </div>
+              
+              <div className="w-full">
+                <DataTable 
+                  filter={searchFilter}
+                  refreshTrigger={tableRefreshTrigger}
+                  onSearch={handleSearch}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        </Navigation>
       </main>
       
       <NotificationSystem 
