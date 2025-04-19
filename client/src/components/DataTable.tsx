@@ -442,7 +442,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Case Type</label>
             <input
               type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.caseType}
               onChange={(e) => handleFilterChange('caseType', e.target.value)}
               placeholder="Filter by case type"
@@ -453,7 +453,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Disposition</label>
             <input
               type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.disposition}
               onChange={(e) => handleFilterChange('disposition', e.target.value)}
               placeholder="Filter by disposition"
@@ -464,7 +464,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Consumer Attorney</label>
             <input
               type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.consumerAttorney}
               onChange={(e) => handleFilterChange('consumerAttorney', e.target.value)}
               placeholder="Filter by consumer attorney"
@@ -474,7 +474,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           <div>
             <label className="block text-neutral-500 mb-1">Forum</label>
             <select
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee] bg-white"
               value={filterCriteria.forum}
               onChange={(e) => handleFilterChange('forum', e.target.value)}
             >
@@ -488,7 +488,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Filing Date From</label>
             <input
               type="date"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.dateFrom}
               onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
             />
@@ -498,7 +498,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Filing Date To</label>
             <input
               type="date"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.dateTo}
               onChange={(e) => handleFilterChange('dateTo', e.target.value)}
             />
@@ -596,7 +596,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         
         <div className="flex items-center space-x-1">
           <button 
-            className="p-1 rounded border border-neutral-200 text-neutral-400 disabled:opacity-50"
+            className="p-1 rounded border border-[#b8dbca] text-[#217346] bg-[#e8f4ee] hover:bg-[#19603A] hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:hover:bg-[#e8f4ee] disabled:hover:text-[#217346]"
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 1}
           >
@@ -608,7 +608,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           {renderPaginationButtons()}
           
           <button 
-            className="p-1 rounded border border-neutral-200 text-neutral-500 disabled:opacity-50"
+            className="p-1 rounded border border-[#b8dbca] text-[#217346] bg-[#e8f4ee] hover:bg-[#19603A] hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:hover:bg-[#e8f4ee] disabled:hover:text-[#217346]"
             onClick={() => handlePageChange(page + 1)}
             disabled={page === pagination.totalPages}
           >
@@ -621,7 +621,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         <div className="text-[8pt] text-neutral-400 flex items-center">
           <span className="mr-2">Rows per page:</span>
           <select 
-            className="border border-neutral-200 rounded p-1 text-[8pt]"
+            className="border border-[#b8dbca] rounded p-1 text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee] bg-white"
             value={rowsPerPage}
             onChange={handleRowsPerPageChange}
           >
