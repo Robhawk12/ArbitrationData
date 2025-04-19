@@ -53,8 +53,8 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="flex flex-col space-y-2">
-          <label htmlFor="nlp-query" className="text-sm text-neutral-500">
-            Ask a question in plain English
+          <label htmlFor="nlp-query" className="text-sm font-medium text-neutral-700">
+            Ask a question
           </label>
           
           <div className="flex space-x-2">
