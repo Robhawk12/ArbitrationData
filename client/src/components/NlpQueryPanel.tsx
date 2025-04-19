@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { apiRequest } from "@/lib/queryClient";
 
 interface NlpQueryPanelProps {
   className?: string;
@@ -22,11 +21,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     setError(null);
     
     try {
-      const response = await apiRequest<{
-        answer: string;
-        data: any;
-        queryType: string;
-      }>("/api/nlp-query", {
+      const response = await fetch("/api/nlp-query", {
         method: "POST",
         body: JSON.stringify({ query }),
         headers: {
@@ -34,7 +29,17 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         },
       });
       
-      setAnswer(response.answer);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && typeof data === 'object' && 'answer' in data) {
+        setAnswer(data.answer as string);
+      } else {
+        setError("Received an invalid response format from the server.");
+      }
     } catch (err) {
       console.error("Failed to process natural language query:", err);
       setError("An error occurred while processing your question. Please try again.");

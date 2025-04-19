@@ -4,6 +4,7 @@ import FileUploadSection from "@/components/FileUploadSection";
 import DataTable from "@/components/DataTable";
 import ProcessingSummary from "@/components/ProcessingSummary";
 import NotificationSystem from "@/components/NotificationSystem";
+import NlpQueryPanel from "@/components/NlpQueryPanel";
 import { useQuery } from "@tanstack/react-query";
 
 interface Notification {
@@ -107,21 +108,29 @@ export default function Home() {
       <AppHeader />
       
       <main className="container mx-auto px-4 py-6">
-        <FileUploadSection 
-          onFileProcessed={handleFileProcessed}
-          onFileError={handleFileError} 
-        />
-        
-        <DataTable 
-          filter={searchFilter}
-          refreshTrigger={tableRefreshTrigger}
-          onSearch={handleSearch}
-        />
-        
-        <ProcessingSummary 
-          summary={summaryData} 
-          refreshTrigger={tableRefreshTrigger}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <FileUploadSection 
+              onFileProcessed={handleFileProcessed}
+              onFileError={handleFileError} 
+            />
+            
+            <DataTable 
+              filter={searchFilter}
+              refreshTrigger={tableRefreshTrigger}
+              onSearch={handleSearch}
+            />
+            
+            <ProcessingSummary 
+              summary={summaryData as any} 
+              refreshTrigger={tableRefreshTrigger}
+            />
+          </div>
+          
+          <div className="lg:col-span-1">
+            <NlpQueryPanel className="sticky top-6" />
+          </div>
+        </div>
       </main>
       
       <NotificationSystem 

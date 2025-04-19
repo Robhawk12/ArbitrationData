@@ -97,7 +97,7 @@ async function executeQueryByType(
         const result = await db
           .select({ count: sql`COUNT(*)` })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
           .execute();
         
         const count = Number(result[0]?.count || 0);
@@ -120,7 +120,7 @@ async function executeQueryByType(
             count: sql`COUNT(*)`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
           .groupBy(arbitrationCases.disposition)
           .execute();
         
@@ -165,7 +165,7 @@ async function executeQueryByType(
             countWithAward: sql`COUNT(NULLIF(award_amount, ''))`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`);
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`);
         
         // Add disposition filter if provided
         if (disposition) {
@@ -228,7 +228,7 @@ async function executeQueryByType(
             caseType: arbitrationCases.caseType,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
           .limit(50) // Limit to prevent extremely large results
           .execute();
         
@@ -273,11 +273,11 @@ async function executeQueryByType(
             count: sql`COUNT(*)`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(respondent_name) LIKE LOWER(${'%' + respondentName + '%'})`);
+          .where(sql`LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName || '') + '%'})`);
         
         // Add arbitrator filter if provided
         if (arbitratorName) {
-          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`) as any;
+          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`) as any;
         }
         
         const results = await query.groupBy(arbitrationCases.disposition).execute();
