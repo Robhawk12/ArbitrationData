@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import multer from "multer";
 import { read, utils } from "xlsx";
 import path from "path";
+import { processNaturalLanguageQuery } from "./nlp";
 
 // Extend Express Request type to include multer file
 declare global {
