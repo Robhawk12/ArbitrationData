@@ -70,7 +70,8 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
             
             <button
               type="submit"
-              className="bg-[#0b5a2b] text-white px-4 py-2 rounded hover:bg-[#074621] transition-colors duration-200 disabled:opacity-50 font-semibold shadow-sm"
+              className={`bg-[#14863e] text-white px-4 py-2 rounded hover:bg-[#0a6d2c] transition-colors duration-200 font-semibold shadow-md ${isLoading || !query.trim() ? 'opacity-60 cursor-not-allowed' : ''}`}
+              style={{ textShadow: '0 1px 1px rgba(0,0,0,0.2)' }}
               disabled={isLoading || !query.trim()}
             >
               {isLoading ? (
