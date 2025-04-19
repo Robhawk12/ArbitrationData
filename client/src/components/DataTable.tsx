@@ -368,27 +368,30 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <input 
               type="text" 
               placeholder="Search..." 
-              className="pl-8 pr-3 py-1 border border-neutral-200 rounded text-[8pt] w-48 focus:outline-none focus:border-primary"
+              className="pl-8 pr-3 py-1 border border-[#b8dbca] rounded text-[8pt] w-48 focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={searchValue}
               onChange={e => setSearchValue(e.target.value)}
               onKeyPress={handleSearchKeyPress}
             />
-            <svg 
-              className="w-3 h-3 text-neutral-300 absolute left-2.5 top-1.5" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24" 
-              xmlns="http://www.w3.org/2000/svg"
+            <div
+              className="absolute left-1.5 top-1 size-5 rounded-full flex items-center justify-center hover:bg-[#e8f4ee] cursor-pointer transition-colors duration-200"
               onClick={handleSearch}
-              style={{ cursor: 'pointer' }}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
+              <svg 
+                className="w-3 h-3 text-[#217346]" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
           </div>
           
           {/* Filter Toggle Button */}
           <button 
-            className="flex items-center space-x-1 text-[8pt] text-neutral-500 border border-neutral-200 rounded px-3 py-1"
+            className={`flex items-center space-x-1 text-[8pt] ${showFilters ? 'bg-[#217346] text-white' : 'bg-[#e8f4ee] text-[#217346] border border-[#b8dbca]'} rounded px-3 py-1 hover:bg-[#19603A] hover:text-white transition-colors duration-200`}
             onClick={toggleFilters}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -399,7 +402,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           
           {/* Export Button */}
           <button 
-            className="flex items-center space-x-1 text-[8pt] text-neutral-500 border border-neutral-200 rounded px-3 py-1"
+            className="flex items-center space-x-1 text-[8pt] bg-[#e8f4ee] text-[#217346] border border-[#b8dbca] rounded px-3 py-1 hover:bg-[#19603A] hover:text-white transition-colors duration-200"
             onClick={handleExport}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -417,7 +420,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Arbitrator</label>
             <input
               type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.arbitrator}
               onChange={(e) => handleFilterChange('arbitrator', e.target.value)}
               placeholder="Filter by arbitrator name"
@@ -428,7 +431,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
             <label className="block text-neutral-500 mb-1">Respondent</label>
             <input
               type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
+              className="w-full p-1 border border-[#b8dbca] rounded text-[8pt] focus:outline-none focus:border-[#217346] focus:ring-1 focus:ring-[#e8f4ee]"
               value={filterCriteria.respondent}
               onChange={(e) => handleFilterChange('respondent', e.target.value)}
               placeholder="Filter by respondent name"
@@ -503,15 +506,21 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
           
           <div className="flex items-end space-x-2">
             <button
-              className="px-3 py-1 bg-[#217346] text-white rounded text-[8pt] hover:bg-[#19603A]"
+              className="flex items-center px-3 py-1 bg-[#217346] text-white rounded text-[8pt] hover:bg-[#19603A] transition-colors duration-200"
               onClick={applyFilters}
             >
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              </svg>
               Apply Filters
             </button>
             <button
-              className="px-3 py-1 border border-neutral-200 text-neutral-500 rounded text-[8pt] hover:bg-neutral-50"
+              className="flex items-center px-3 py-1 bg-[#f5f5f5] text-neutral-600 border border-neutral-300 rounded text-[8pt] hover:bg-neutral-200 transition-colors duration-200"
               onClick={clearFilters}
             >
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
               Clear
             </button>
           </div>
