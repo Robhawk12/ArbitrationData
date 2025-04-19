@@ -1,7 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 
 interface AutoSuggestFilterProps {
   type: "arbitrator" | "respondent" | "caseType" | "disposition" | "attorney";
@@ -28,27 +26,39 @@ export default function AutoSuggestFilter({
   };
   
   const endpoint = endpointMap[type];
+  const [options, setOptions] = useState<ComboboxOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Fetch options from API
-  const { data, isLoading } = useQuery({
-    queryKey: [endpoint],
-    queryFn: async () => {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Failed to fetch suggestions');
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(endpoint);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${type} suggestions`);
+        }
+        
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          const formattedOptions = data.map((item: string) => ({
+            value: item,
+            label: item
+          }));
+          setOptions(formattedOptions);
+        }
+      } catch (error) {
+        console.error(`Error fetching ${type} options:`, error);
+        setOptions([]);
+      } finally {
+        setIsLoading(false);
       }
-      return response.json() as Promise<string[]>;
-    }
-  });
-  
-  // Convert string[] to ComboboxOption[]
-  const options: ComboboxOption[] = React.useMemo(() => {
-    if (!data || !Array.isArray(data)) return [];
-    return data.map((item: string) => ({
-      value: item,
-      label: item
-    }));
-  }, [data]);
+    };
+    
+    fetchOptions();
+  }, [endpoint, type]);
   
   return (
     <div>
