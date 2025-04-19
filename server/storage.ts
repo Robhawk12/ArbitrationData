@@ -29,13 +29,6 @@ export interface IStorage {
   deleteCase(caseId: string): Promise<boolean>;
   getCaseCount(filter?: string): Promise<number>;
   
-  // Filter suggestions methods
-  getUniqueArbitrators(limit?: number): Promise<string[]>;
-  getUniqueRespondents(limit?: number): Promise<string[]>;
-  getUniqueCaseTypes(limit?: number): Promise<string[]>;
-  getUniqueDispositions(limit?: number): Promise<string[]>;
-  getUniqueConsumerAttorneys(limit?: number): Promise<string[]>;
-  
   // Processed files methods
   getProcessedFiles(): Promise<ProcessedFile[]>;
   getProcessedFileByName(filename: string): Promise<ProcessedFile | undefined>;
@@ -432,87 +425,6 @@ export class DatabaseStorage implements IStorage {
       averageAwardAmount,
       highestAwardAmount
     };
-  }
-  
-  // Filter suggestions methods
-  async getUniqueArbitrators(limit: number = 100): Promise<string[]> {
-    // Get unique arbitrator names with raw SQL to ensure we get actual names
-    const result = await db.execute(sql`
-      SELECT DISTINCT arbitrator_name as value 
-      FROM arbitration_cases 
-      WHERE arbitrator_name IS NOT NULL 
-        AND arbitrator_name != '' 
-        AND arbitrator_name NOT SIMILAR TO '[0-9]+'
-        AND arbitrator_name LIKE '% %'
-      ORDER BY arbitrator_name 
-      LIMIT ${limit}
-    `);
-    
-    return result.rows.map(row => (row as any).value as string).filter(Boolean);
-  }
-  
-  async getUniqueRespondents(limit: number = 100): Promise<string[]> {
-    const result = await db.execute(sql`
-      SELECT DISTINCT respondent_name as value 
-      FROM arbitration_cases 
-      WHERE respondent_name IS NOT NULL 
-        AND respondent_name != ''
-        AND respondent_name NOT SIMILAR TO '[0-9]+'
-        AND (respondent_name LIKE '% %' OR respondent_name LIKE '%.%')
-      ORDER BY respondent_name 
-      LIMIT ${limit}
-    `);
-    
-    return result.rows.map(row => (row as any).value as string).filter(Boolean);
-  }
-  
-  async getUniqueCaseTypes(limit: number = 100): Promise<string[]> {
-    const result = await db.execute(sql`
-      SELECT DISTINCT case_type as value 
-      FROM arbitration_cases 
-      WHERE case_type IS NOT NULL 
-        AND case_type != ''
-        AND case_type NOT SIMILAR TO '[0-9]+'
-        AND case_type LIKE '% %'
-        AND (case_type ILIKE '%Consumer%' OR case_type ILIKE '%Employment%' OR case_type ILIKE '%Insurance%'
-             OR case_type ILIKE '%Contract%' OR case_type ILIKE '%Finance%' OR case_type ILIKE '%Fraud%' 
-             OR case_type ILIKE '%Dispute%' OR case_type ILIKE '%Claim%')
-      ORDER BY case_type 
-      LIMIT ${limit}
-    `);
-    
-    return result.rows.map(row => (row as any).value as string).filter(Boolean);
-  }
-  
-  async getUniqueDispositions(limit: number = 100): Promise<string[]> {
-    const result = await db.execute(sql`
-      SELECT DISTINCT disposition as value 
-      FROM arbitration_cases 
-      WHERE disposition IS NOT NULL 
-        AND disposition != ''
-        AND disposition NOT SIMILAR TO '[0-9]+'
-        AND (disposition ILIKE '%Award%' OR disposition ILIKE '%Settlement%' OR disposition ILIKE '%Dismiss%'
-             OR disposition ILIKE '%Withdrawn%' OR disposition ILIKE '%Closed%' OR disposition ILIKE '%Decision%')
-      ORDER BY disposition 
-      LIMIT ${limit}
-    `);
-    
-    return result.rows.map(row => (row as any).value as string).filter(Boolean);
-  }
-  
-  async getUniqueConsumerAttorneys(limit: number = 100): Promise<string[]> {
-    const result = await db.execute(sql`
-      SELECT DISTINCT consumer_attorney as value 
-      FROM arbitration_cases 
-      WHERE consumer_attorney IS NOT NULL 
-        AND consumer_attorney != ''
-        AND consumer_attorney NOT SIMILAR TO '[0-9]+'
-        AND consumer_attorney LIKE '% %'
-      ORDER BY consumer_attorney 
-      LIMIT ${limit}
-    `);
-    
-    return result.rows.map(row => (row as any).value as string).filter(Boolean);
   }
 }
 
