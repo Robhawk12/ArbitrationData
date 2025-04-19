@@ -16,7 +16,7 @@ export default function Navigation({ children }: NavigationProps) {
       onValueChange={setActiveTab}
     >
       <div className="border-b">
-        <TabsList className="h-16 px-4 py-2 bg-white">
+        <TabsList className="h-14 px-4 py-0 bg-transparent">
           <TabsTrigger
             value="query"
             className="text-lg px-5 py-3 data-[state=active]:bg-[#e8f4ee] data-[state=active]:text-[#217346] data-[state=active]:border-b-2 data-[state=active]:border-[#217346]"

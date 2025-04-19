@@ -109,12 +109,11 @@ export default function Home() {
     <div className="bg-neutral-100 min-h-screen">
       <AppHeader />
       
-      <main className="container mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-[#217346] mb-4">Arbitration Case Analysis</h1>
+      <main className="container mx-auto px-4 py-2">
         <Navigation>
           {/* NLP Query Tab */}
-          <TabsContent value="query" className="mt-4">
-            <div className="grid grid-cols-1 gap-6">
+          <TabsContent value="query" className="mt-0 pt-0">
+            <div className="grid grid-cols-1 gap-2">
               <div className="w-full">
                 <NlpQueryPanel className="w-full" />
               </div>
