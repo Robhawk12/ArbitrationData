@@ -29,6 +29,13 @@ export interface IStorage {
   deleteCase(caseId: string): Promise<boolean>;
   getCaseCount(filter?: string): Promise<number>;
   
+  // Filter suggestions methods
+  getUniqueArbitrators(limit?: number): Promise<string[]>;
+  getUniqueRespondents(limit?: number): Promise<string[]>;
+  getUniqueCaseTypes(limit?: number): Promise<string[]>;
+  getUniqueDispositions(limit?: number): Promise<string[]>;
+  getUniqueConsumerAttorneys(limit?: number): Promise<string[]>;
+  
   // Processed files methods
   getProcessedFiles(): Promise<ProcessedFile[]>;
   getProcessedFileByName(filename: string): Promise<ProcessedFile | undefined>;
@@ -425,6 +432,62 @@ export class DatabaseStorage implements IStorage {
       averageAwardAmount,
       highestAwardAmount
     };
+  }
+  
+  // Filter suggestions methods
+  async getUniqueArbitrators(limit: number = 100): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ value: arbitrationCases.arbitratorName })
+      .from(arbitrationCases)
+      .where(isNotNull(arbitrationCases.arbitratorName))
+      .orderBy(arbitrationCases.arbitratorName)
+      .limit(limit);
+    
+    return result.map(row => row.value!).filter(val => val.trim() !== '');
+  }
+  
+  async getUniqueRespondents(limit: number = 100): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ value: arbitrationCases.respondentName })
+      .from(arbitrationCases)
+      .where(isNotNull(arbitrationCases.respondentName))
+      .orderBy(arbitrationCases.respondentName)
+      .limit(limit);
+    
+    return result.map(row => row.value!).filter(val => val.trim() !== '');
+  }
+  
+  async getUniqueCaseTypes(limit: number = 100): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ value: arbitrationCases.caseType })
+      .from(arbitrationCases)
+      .where(isNotNull(arbitrationCases.caseType))
+      .orderBy(arbitrationCases.caseType)
+      .limit(limit);
+    
+    return result.map(row => row.value!).filter(val => val.trim() !== '');
+  }
+  
+  async getUniqueDispositions(limit: number = 100): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ value: arbitrationCases.disposition })
+      .from(arbitrationCases)
+      .where(isNotNull(arbitrationCases.disposition))
+      .orderBy(arbitrationCases.disposition)
+      .limit(limit);
+    
+    return result.map(row => row.value!).filter(val => val.trim() !== '');
+  }
+  
+  async getUniqueConsumerAttorneys(limit: number = 100): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ value: arbitrationCases.consumerAttorney })
+      .from(arbitrationCases)
+      .where(isNotNull(arbitrationCases.consumerAttorney))
+      .orderBy(arbitrationCases.consumerAttorney)
+      .limit(limit);
+    
+    return result.map(row => row.value!).filter(val => val.trim() !== '');
   }
 }
 

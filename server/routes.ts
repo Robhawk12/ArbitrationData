@@ -93,6 +93,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Endpoints for filter autosuggest dropdowns
+  app.get("/api/suggestions/arbitrators", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const arbitrators = await storage.getUniqueArbitrators(limit);
+      res.json(arbitrators);
+    } catch (error) {
+      res.status(500).json({ error: `Failed to fetch arbitrators: ${(error as Error).message}` });
+    }
+  });
+  
+  app.get("/api/suggestions/respondents", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const respondents = await storage.getUniqueRespondents(limit);
+      res.json(respondents);
+    } catch (error) {
+      res.status(500).json({ error: `Failed to fetch respondents: ${(error as Error).message}` });
+    }
+  });
+  
+  app.get("/api/suggestions/case-types", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const caseTypes = await storage.getUniqueCaseTypes(limit);
+      res.json(caseTypes);
+    } catch (error) {
+      res.status(500).json({ error: `Failed to fetch case types: ${(error as Error).message}` });
+    }
+  });
+  
+  app.get("/api/suggestions/dispositions", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const dispositions = await storage.getUniqueDispositions(limit);
+      res.json(dispositions);
+    } catch (error) {
+      res.status(500).json({ error: `Failed to fetch dispositions: ${(error as Error).message}` });
+    }
+  });
+  
+  app.get("/api/suggestions/attorneys", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const attorneys = await storage.getUniqueConsumerAttorneys(limit);
+      res.json(attorneys);
+    } catch (error) {
+      res.status(500).json({ error: `Failed to fetch attorneys: ${(error as Error).message}` });
+    }
+  });
+  
   // Upload and process Excel files
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
