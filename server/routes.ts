@@ -591,6 +591,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return null;
   }
 
+  // Process natural language queries
+  app.post("/api/nlp-query", async (req: Request, res: Response) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Missing or invalid query parameter" });
+      }
+      
+      const result = await processNaturalLanguageQuery(query);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ 
+        error: `Failed to process natural language query: ${(error as Error).message}`,
+        answer: "I encountered an error processing your question. Please try again or rephrase your question."
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

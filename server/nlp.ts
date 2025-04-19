@@ -169,7 +169,7 @@ async function executeQueryByType(
         
         // Add disposition filter if provided
         if (disposition) {
-          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`);
+          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
         }
         
         const result = await query.execute();
@@ -221,7 +221,7 @@ async function executeQueryByType(
         const cases = await db
           .select({
             caseId: arbitrationCases.caseId,
-            claimantName: arbitrationCases.claimantName,
+            // Use the column names exactly as they are in the schema
             respondentName: arbitrationCases.respondentName,
             filingDate: arbitrationCases.filingDate,
             disposition: arbitrationCases.disposition,
@@ -245,7 +245,6 @@ async function executeQueryByType(
         
         cases.forEach((c, i) => {
           message += `${i + 1}. Case ID: ${c.caseId}\n`;
-          message += `   Claimant: ${c.claimantName || "Unknown"}\n`;
           message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
           message += `   Filing Date: ${c.filingDate || "Unknown"}\n`;
           message += `   Disposition: ${c.disposition || "Unknown"}\n`;
@@ -278,7 +277,7 @@ async function executeQueryByType(
         
         // Add arbitrator filter if provided
         if (arbitratorName) {
-          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`);
+          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`) as any;
         }
         
         const results = await query.groupBy(arbitrationCases.disposition).execute();
