@@ -50,9 +50,6 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
 
   return (
     <div className={`bg-white rounded-lg shadow-md p-4 ${className}`}>
-      <h2 className="text-lg font-semibold text-[#217346] mb-4">
-        Ask about Arbitration Data
-      </h2>
       
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="flex flex-col space-y-2">
