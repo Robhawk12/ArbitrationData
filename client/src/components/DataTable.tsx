@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import AutoSuggestFilter from "@/components/AutoSuggestFilter";
 
 interface ArbitrationCase {
   id: number;
@@ -413,60 +414,45 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       {/* Filter Panel */}
       {showFilters && (
         <div className="bg-[#f9fcfa] border border-[#e2f0e6] rounded-md p-3 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-[8pt]">
-          <div>
-            <label className="block text-neutral-500 mb-1">Arbitrator</label>
-            <input
-              type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
-              value={filterCriteria.arbitrator}
-              onChange={(e) => handleFilterChange('arbitrator', e.target.value)}
-              placeholder="Filter by arbitrator name"
-            />
-          </div>
+          <AutoSuggestFilter
+            type="arbitrator"
+            value={filterCriteria.arbitrator}
+            onChange={(value) => handleFilterChange('arbitrator', value)}
+            label="Arbitrator"
+            placeholder="Select or search arbitrator"
+          />
           
-          <div>
-            <label className="block text-neutral-500 mb-1">Respondent</label>
-            <input
-              type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
-              value={filterCriteria.respondent}
-              onChange={(e) => handleFilterChange('respondent', e.target.value)}
-              placeholder="Filter by respondent name"
-            />
-          </div>
+          <AutoSuggestFilter
+            type="respondent"
+            value={filterCriteria.respondent}
+            onChange={(value) => handleFilterChange('respondent', value)}
+            label="Respondent"
+            placeholder="Select or search respondent"
+          />
           
-          <div>
-            <label className="block text-neutral-500 mb-1">Case Type</label>
-            <input
-              type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
-              value={filterCriteria.caseType}
-              onChange={(e) => handleFilterChange('caseType', e.target.value)}
-              placeholder="Filter by case type"
-            />
-          </div>
+          <AutoSuggestFilter
+            type="caseType"
+            value={filterCriteria.caseType}
+            onChange={(value) => handleFilterChange('caseType', value)}
+            label="Case Type"
+            placeholder="Select or search case type"
+          />
           
-          <div>
-            <label className="block text-neutral-500 mb-1">Disposition</label>
-            <input
-              type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
-              value={filterCriteria.disposition}
-              onChange={(e) => handleFilterChange('disposition', e.target.value)}
-              placeholder="Filter by disposition"
-            />
-          </div>
+          <AutoSuggestFilter
+            type="disposition"
+            value={filterCriteria.disposition}
+            onChange={(value) => handleFilterChange('disposition', value)}
+            label="Disposition"
+            placeholder="Select or search disposition"
+          />
           
-          <div>
-            <label className="block text-neutral-500 mb-1">Consumer Attorney</label>
-            <input
-              type="text"
-              className="w-full p-1 border border-neutral-200 rounded text-[8pt] focus:outline-none focus:border-primary"
-              value={filterCriteria.consumerAttorney}
-              onChange={(e) => handleFilterChange('consumerAttorney', e.target.value)}
-              placeholder="Filter by consumer attorney"
-            />
-          </div>
+          <AutoSuggestFilter
+            type="attorney"
+            value={filterCriteria.consumerAttorney}
+            onChange={(value) => handleFilterChange('consumerAttorney', value)}
+            label="Consumer Attorney"
+            placeholder="Select or search attorney"
+          />
           
           <div>
             <label className="block text-neutral-500 mb-1">Forum</label>
