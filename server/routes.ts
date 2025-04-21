@@ -625,8 +625,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Processing AI query: ${question}`);
-      const result = await processAiQuery(question);
-      res.json(result);
+      try {
+        // Try the enhanced AI query first
+        const result = await processAiQuery(question);
+        
+        // Check if there was an OpenAI API error
+        if (result.answer_type === "error" && 
+            (result.error?.includes("quota") || 
+             result.error?.includes("rate limit") ||
+             result.error?.includes("429"))) {
+          
+          console.log("AI API error detected, falling back to legacy NLP system");
+          // Fall back to the legacy NLP system
+          const legacyResult = await processNaturalLanguageQuery(question);
+          
+          // Return the legacy result in enhanced format
+          return res.json({
+            answer_type: "fallback",
+            summary: legacyResult.answer,
+            error: result.error,
+            fallback_used: true
+          });
+        }
+        
+        return res.json(result);
+      } catch (aiError) {
+        console.error("Enhanced AI query error:", aiError);
+        
+        // Fall back to legacy NLP system if the enhanced one fails
+        try {
+          console.log("Falling back to legacy NLP system");
+          const legacyResult = await processNaturalLanguageQuery(question);
+          
+          // Return the legacy result in enhanced format
+          return res.json({
+            answer_type: "fallback",
+            summary: legacyResult.answer,
+            error: (aiError as Error).message,
+            fallback_used: true
+          });
+        } catch (legacyError) {
+          // Both systems failed
+          throw new Error(`Enhanced system error: ${(aiError as Error).message}, Legacy system error: ${(legacyError as Error).message}`);
+        }
+      }
     } catch (error) {
       console.error("Error in query_ai endpoint:", error);
       res.status(500).json({ 

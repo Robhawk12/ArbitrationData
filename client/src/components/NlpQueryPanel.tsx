@@ -2,12 +2,13 @@ import { useState } from "react";
 
 // Define the types for our API response
 interface QueryResult {
-  answer_type: "count" | "average" | "list" | "error";
+  answer_type: "count" | "average" | "list" | "error" | "fallback";
   value?: number;
   items?: string[];
   summary: string;
   error?: string;
   sql_query?: string;
+  fallback_used?: boolean;
 }
 
 interface NlpQueryPanelProps {
@@ -59,6 +60,13 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         if (data && typeof data === 'object' && 'summary' in data) {
           setAnswer(data.summary);
           setQueryResult(data as QueryResult);
+          
+          // Check if fallback was used
+          if (data.answer_type === 'fallback' && data.fallback_used === true) {
+            console.log("Enhanced mode used fallback to legacy system");
+            // Show a notification about fallback
+            setError(`Note: The enhanced AI mode encountered an issue (${data.error || 'API limit'}). Results shown are from the standard system.`);
+          }
         } else {
           setError("Received an invalid response format from the server.");
         }
@@ -135,12 +143,30 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         <span className="text-xs text-neutral-500 mr-2">Enhanced AI Mode</span>
         <div 
           className={`relative inline-block w-10 h-5 rounded-full cursor-pointer transition-colors duration-200 ease-in-out ${useEnhancedMode ? 'bg-[#14863e]' : 'bg-gray-300'}`}
-          onClick={() => setUseEnhancedMode(!useEnhancedMode)}
+          onClick={() => {
+            setUseEnhancedMode(!useEnhancedMode);
+            // Clear previous query results when switching modes
+            setQueryResult(null);
+            setAnswer(null);
+            setError(null);
+          }}
         >
           <span 
             className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ease-in-out ${useEnhancedMode ? 'transform translate-x-5' : ''}`}
           ></span>
         </div>
+      </div>
+      
+      {/* Mode indicator */}
+      <div className="mb-3 mt-1">
+        <span className={`text-xs px-2 py-0.5 rounded-full ${useEnhancedMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+          {useEnhancedMode ? 'Using AI-powered SQL generation' : 'Using standard query mode'}
+        </span>
+        {useEnhancedMode && (
+          <span className="text-xs text-gray-500 ml-2">
+            (If you encounter rate limits, toggle this off)
+          </span>
+        )}
       </div>
       
       {answer && !error && (
