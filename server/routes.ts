@@ -592,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return null;
   }
 
-  // Process natural language queries
+  // Process natural language queries (legacy endpoint)
   app.post("/api/nlp-query", async (req: Request, res: Response) => {
     try {
       const { query } = req.body;
@@ -607,6 +607,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: `Failed to process natural language query: ${(error as Error).message}`,
         answer: "I encountered an error processing your question. Please try again or rephrase your question."
+      });
+    }
+  });
+
+  // Process AI queries with enhanced capabilities
+  app.post("/api/query_ai", async (req: Request, res: Response) => {
+    try {
+      const { question } = req.body;
+      
+      if (!question || typeof question !== 'string') {
+        return res.status(400).json({ 
+          answer_type: "error",
+          summary: "Missing or invalid question parameter",
+          error: "Please provide a valid question"
+        });
+      }
+      
+      console.log(`Processing AI query: ${question}`);
+      const result = await processAiQuery(question);
+      res.json(result);
+    } catch (error) {
+      console.error("Error in query_ai endpoint:", error);
+      res.status(500).json({ 
+        answer_type: "error",
+        summary: "I encountered an error processing your question. Please try again or rephrase your question.",
+        error: (error as Error).message
       });
     }
   });

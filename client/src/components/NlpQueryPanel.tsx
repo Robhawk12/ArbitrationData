@@ -1,5 +1,15 @@
 import { useState } from "react";
 
+// Define the types for our API response
+interface QueryResult {
+  answer_type: "count" | "average" | "list" | "error";
+  value?: number;
+  items?: string[];
+  summary: string;
+  error?: string;
+  sql_query?: string;
+}
+
 interface NlpQueryPanelProps {
   className?: string;
 }
@@ -7,8 +17,11 @@ interface NlpQueryPanelProps {
 export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSqlQuery, setShowSqlQuery] = useState(false);
+  const [useEnhancedMode, setUseEnhancedMode] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,11 +32,17 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     
     setIsLoading(true);
     setError(null);
+    setShowSqlQuery(false);
+    setQueryResult(null);
     
     try {
-      const response = await fetch("/api/nlp-query", {
+      // Decide which endpoint to use based on enhanced mode toggle
+      const endpoint = useEnhancedMode ? "/api/query_ai" : "/api/nlp-query";
+      const bodyKey = useEnhancedMode ? "question" : "query";
+      
+      const response = await fetch(endpoint, {
         method: "POST",
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ [bodyKey]: query }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -35,10 +54,21 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       const data = await response.json();
       
-      if (data && typeof data === 'object' && 'answer' in data) {
-        setAnswer(data.answer as string);
+      if (useEnhancedMode) {
+        // Enhanced mode response handling
+        if (data && typeof data === 'object' && 'summary' in data) {
+          setAnswer(data.summary);
+          setQueryResult(data as QueryResult);
+        } else {
+          setError("Received an invalid response format from the server.");
+        }
       } else {
-        setError("Received an invalid response format from the server.");
+        // Legacy mode response handling
+        if (data && typeof data === 'object' && 'answer' in data) {
+          setAnswer(data.answer as string);
+        } else {
+          setError("Received an invalid response format from the server.");
+        }
       }
     } catch (err) {
       console.error("Failed to process natural language query:", err);
@@ -100,12 +130,55 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         </div>
       )}
       
+      {/* Enhanced mode toggle */}
+      <div className="flex items-center justify-end mb-2">
+        <span className="text-xs text-neutral-500 mr-2">Enhanced AI Mode</span>
+        <div 
+          className={`relative inline-block w-10 h-5 rounded-full cursor-pointer transition-colors duration-200 ease-in-out ${useEnhancedMode ? 'bg-[#14863e]' : 'bg-gray-300'}`}
+          onClick={() => setUseEnhancedMode(!useEnhancedMode)}
+        >
+          <span 
+            className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ease-in-out ${useEnhancedMode ? 'transform translate-x-5' : ''}`}
+          ></span>
+        </div>
+      </div>
+      
       {answer && !error && (
         <div className="bg-[#e8f4ee] border border-[#b8dbca] p-4 rounded mt-4">
           <h3 className="font-medium text-[#217346] mb-2">Answer:</h3>
           <div className="whitespace-pre-line text-neutral-700">
             {answer}
           </div>
+          
+          {/* Display list items if available */}
+          {queryResult?.items && queryResult.items.length > 0 && (
+            <div className="mt-3 border-t border-[#b8dbca] pt-3">
+              <h4 className="font-medium text-[#217346] mb-2">Results:</h4>
+              <ul className="list-disc pl-5 mt-1 space-y-1 max-h-60 overflow-y-auto text-sm">
+                {queryResult.items.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          {/* SQL Query display for enhanced mode */}
+          {useEnhancedMode && queryResult?.sql_query && (
+            <div className="mt-3">
+              <button
+                onClick={() => setShowSqlQuery(!showSqlQuery)}
+                className="text-xs text-[#217346] underline hover:text-[#14863e] transition-colors duration-200"
+              >
+                {showSqlQuery ? "Hide SQL Query" : "Show SQL Query"}
+              </button>
+              
+              {showSqlQuery && (
+                <div className="mt-2 bg-neutral-100 p-2 rounded text-xs font-mono overflow-x-auto">
+                  {queryResult.sql_query}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       
@@ -119,6 +192,11 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
           <li>Arbitrator average awards (e.g., "What is the average award amount given by [name]?")</li>
           <li>Arbitrator case listing (e.g., "List the cases handled by [name]")</li>
           <li>Respondent outcome analysis (e.g., "How many times has [arbitrator] ruled for the consumer against [company]?")</li>
+          {useEnhancedMode && (
+            <>
+              <li className="font-semibold">Enhanced Mode: Ask more complex questions about cases, arbitrators, and respondents!</li>
+            </>
+          )}
         </ul>
       </div>
     </div>
