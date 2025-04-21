@@ -7,7 +7,6 @@ import multer from "multer";
 import { read, utils } from "xlsx";
 import path from "path";
 import { processNaturalLanguageQuery } from "./nlp";
-import { processAiQuery } from "./query_ai";
 
 // Extend Express Request type to include multer file
 declare global {
@@ -592,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return null;
   }
 
-  // Process natural language queries (legacy endpoint)
+  // Process natural language queries
   app.post("/api/nlp-query", async (req: Request, res: Response) => {
     try {
       const { query } = req.body;
@@ -607,108 +606,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: `Failed to process natural language query: ${(error as Error).message}`,
         answer: "I encountered an error processing your question. Please try again or rephrase your question."
-      });
-    }
-  });
-
-  // Process AI queries with enhanced capabilities
-  app.post("/api/query_ai", async (req: Request, res: Response) => {
-    try {
-      const { question } = req.body;
-      
-      if (!question || typeof question !== 'string') {
-        return res.status(400).json({ 
-          answer_type: "error",
-          summary: "Missing or invalid question parameter",
-          error: "Please provide a valid question"
-        });
-      }
-      
-      console.log(`Processing AI query: ${question}`);
-      try {
-        // Try the enhanced AI query first
-        const result = await processAiQuery(question);
-        
-        // Check if there was an OpenAI API error
-        if (result.answer_type === "error" && 
-            (result.error?.includes("quota") || 
-             result.error?.includes("rate limit") ||
-             result.error?.includes("429"))) {
-          
-          console.log("AI API error detected, falling back to legacy NLP system");
-          // Fall back to the legacy NLP system
-          try {
-            const legacyResult = await processNaturalLanguageQuery(question);
-            
-            // Return the legacy result in enhanced format
-            return res.json({
-              answer_type: "fallback",
-              summary: legacyResult.answer,
-              error: result.error,
-              fallback_used: true
-            });
-          } catch (legacyError) {
-            const errorMsg = (legacyError as Error).message || "";
-            
-            // Check if legacy system also hit rate limits
-            if (errorMsg.includes("quota") || errorMsg.includes("rate limit") || errorMsg.includes("429")) {
-              console.log("Both systems hit API rate limits");
-              return res.json({
-                answer_type: "error",
-                summary: "The AI system is currently unavailable. Please try again later when API quotas have reset.",
-                error: "Both primary and fallback AI systems have exceeded their rate limits",
-                all_systems_rate_limited: true
-              });
-            }
-            
-            // Legacy system failed for other reasons
-            throw legacyError;
-          }
-        }
-        
-        return res.json(result);
-      } catch (aiError) {
-        console.error("Enhanced AI query error:", aiError);
-        const aiErrorMsg = (aiError as Error).message || "";
-        
-        // Fall back to legacy NLP system if the enhanced one fails
-        try {
-          console.log("Falling back to legacy NLP system");
-          const legacyResult = await processNaturalLanguageQuery(question);
-          
-          // Return the legacy result in enhanced format
-          return res.json({
-            answer_type: "fallback",
-            summary: legacyResult.answer,
-            error: (aiError as Error).message,
-            fallback_used: true
-          });
-        } catch (legacyError) {
-          const legacyErrorMsg = (legacyError as Error).message || "";
-          
-          // Check if both systems hit rate limits
-          if ((aiErrorMsg.includes("quota") || aiErrorMsg.includes("rate limit") || aiErrorMsg.includes("429")) &&
-              (legacyErrorMsg.includes("quota") || legacyErrorMsg.includes("rate limit") || legacyErrorMsg.includes("429"))) {
-            
-            console.log("Both systems hit API rate limits");
-            return res.json({
-              answer_type: "error",
-              summary: "The AI system is currently unavailable. Please try again later when API quotas have reset.",
-              error: "Both primary and fallback AI systems have exceeded their rate limits",
-              all_systems_rate_limited: true
-            });
-          }
-          
-          // Both systems failed for different reasons
-          throw new Error(`Enhanced system error: ${aiErrorMsg}, Legacy system error: ${legacyErrorMsg}`);
-        }
-      }
-    } catch (error) {
-      console.error("Error in query_ai endpoint:", error);
-      res.status(500).json({ 
-        answer_type: "error",
-        summary: "I encountered an error processing your question. Please try again or rephrase your question.",
-        error: (error as Error).message
       });
     }
   });
