@@ -9,6 +9,7 @@ interface QueryResult {
   error?: string;
   sql_query?: string;
   fallback_used?: boolean;
+  all_systems_rate_limited?: boolean;
 }
 
 interface NlpQueryPanelProps {
@@ -61,8 +62,13 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
           setAnswer(data.summary);
           setQueryResult(data as QueryResult);
           
+          // Check if both systems hit rate limits
+          if (data.all_systems_rate_limited) {
+            console.log("All AI systems have hit rate limits");
+            setError(`The AI service is currently unavailable due to API rate limits. Please try again later when the service has been refreshed.`);
+          }
           // Check if fallback was used
-          if (data.answer_type === 'fallback' && data.fallback_used === true) {
+          else if (data.answer_type === 'fallback' && data.fallback_used === true) {
             console.log("Enhanced mode used fallback to legacy system");
             // Show a notification about fallback
             setError(`Note: The enhanced AI mode encountered an issue (${data.error || 'API limit'}). Results shown are from the standard system.`);

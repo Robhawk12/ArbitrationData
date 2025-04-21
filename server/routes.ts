@@ -637,20 +637,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log("AI API error detected, falling back to legacy NLP system");
           // Fall back to the legacy NLP system
-          const legacyResult = await processNaturalLanguageQuery(question);
-          
-          // Return the legacy result in enhanced format
-          return res.json({
-            answer_type: "fallback",
-            summary: legacyResult.answer,
-            error: result.error,
-            fallback_used: true
-          });
+          try {
+            const legacyResult = await processNaturalLanguageQuery(question);
+            
+            // Return the legacy result in enhanced format
+            return res.json({
+              answer_type: "fallback",
+              summary: legacyResult.answer,
+              error: result.error,
+              fallback_used: true
+            });
+          } catch (legacyError) {
+            const errorMsg = (legacyError as Error).message || "";
+            
+            // Check if legacy system also hit rate limits
+            if (errorMsg.includes("quota") || errorMsg.includes("rate limit") || errorMsg.includes("429")) {
+              console.log("Both systems hit API rate limits");
+              return res.json({
+                answer_type: "error",
+                summary: "The AI system is currently unavailable. Please try again later when API quotas have reset.",
+                error: "Both primary and fallback AI systems have exceeded their rate limits",
+                all_systems_rate_limited: true
+              });
+            }
+            
+            // Legacy system failed for other reasons
+            throw legacyError;
+          }
         }
         
         return res.json(result);
       } catch (aiError) {
         console.error("Enhanced AI query error:", aiError);
+        const aiErrorMsg = (aiError as Error).message || "";
         
         // Fall back to legacy NLP system if the enhanced one fails
         try {
@@ -665,8 +684,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             fallback_used: true
           });
         } catch (legacyError) {
-          // Both systems failed
-          throw new Error(`Enhanced system error: ${(aiError as Error).message}, Legacy system error: ${(legacyError as Error).message}`);
+          const legacyErrorMsg = (legacyError as Error).message || "";
+          
+          // Check if both systems hit rate limits
+          if ((aiErrorMsg.includes("quota") || aiErrorMsg.includes("rate limit") || aiErrorMsg.includes("429")) &&
+              (legacyErrorMsg.includes("quota") || legacyErrorMsg.includes("rate limit") || legacyErrorMsg.includes("429"))) {
+            
+            console.log("Both systems hit API rate limits");
+            return res.json({
+              answer_type: "error",
+              summary: "The AI system is currently unavailable. Please try again later when API quotas have reset.",
+              error: "Both primary and fallback AI systems have exceeded their rate limits",
+              all_systems_rate_limited: true
+            });
+          }
+          
+          // Both systems failed for different reasons
+          throw new Error(`Enhanced system error: ${aiErrorMsg}, Legacy system error: ${legacyErrorMsg}`);
         }
       }
     } catch (error) {
