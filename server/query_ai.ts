@@ -1,5 +1,4 @@
 import { OpenAI } from "openai";
-import { createParser } from 'ai';
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
@@ -33,7 +32,11 @@ export async function executeSqlQuery(sqlQuery: string): Promise<QueryResult> {
     }
 
     // Execute the query
-    const queryResult = await db.execute(sql.raw(sqlQuery));
+    const result = await db.execute(sql.raw(sqlQuery));
+    
+    // Convert result to array for easier processing
+    // Using any[] type here because PostgreSQL results can vary in structure
+    const queryResult: any[] = Array.isArray(result) ? result : [result];
     
     // Determine the type of query result
     if (!queryResult || queryResult.length === 0) {
@@ -46,6 +49,16 @@ export async function executeSqlQuery(sqlQuery: string): Promise<QueryResult> {
     }
 
     const firstRow = queryResult[0];
+    
+    // Skip if there's no data
+    if (!firstRow) {
+      return {
+        answer_type: "count",
+        value: 0,
+        summary: "No results found for your query.",
+        sql_query: sqlQuery,
+      };
+    }
     
     // Handle count queries
     if (
@@ -96,7 +109,9 @@ export async function executeSqlQuery(sqlQuery: string): Promise<QueryResult> {
     }
     
     // Handle list queries (assuming everything else is a list)
-    const items: string[] = queryResult.map((row) => {
+    const items: string[] = queryResult.map((row: any) => {
+      if (!row) return "Unknown";
+      
       // If the row has specific important fields, format them nicely
       if (row.caseId || row.case_id) {
         const caseId = row.caseId || row.case_id;

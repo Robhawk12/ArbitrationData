@@ -7,6 +7,7 @@ import multer from "multer";
 import { read, utils } from "xlsx";
 import path from "path";
 import { processNaturalLanguageQuery } from "./nlp";
+import { processAiQuery } from "./query_ai";
 
 // Extend Express Request type to include multer file
 declare global {
