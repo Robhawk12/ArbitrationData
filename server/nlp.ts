@@ -330,6 +330,56 @@ async function executeQueryByType(
 }
 
 /**
+ * Direct pattern matching for common queries when OpenAI API fails
+ * @param query The natural language query from the user
+ */
+async function patternMatchQuery(query: string): Promise<{
+  type: string;
+  parameters: Record<string, string | null>;
+} | null> {
+  const queryLower = query.toLowerCase().trim();
+  
+  // Check for "how many cases has [name] handled" pattern
+  const caseCountPattern = /how many cases has (.+?) handled/i;
+  const caseCountMatch = queryLower.match(caseCountPattern);
+  
+  if (caseCountMatch && caseCountMatch[1]) {
+    const arbitratorName = caseCountMatch[1].trim();
+    return {
+      type: QUERY_TYPES.ARBITRATOR_CASE_COUNT,
+      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
+    };
+  }
+  
+  // Check for "list cases handled by [name]" pattern
+  const listCasesPattern = /list( all)? cases handled by (.+)/i;
+  const listCasesMatch = queryLower.match(listCasesPattern);
+  
+  if (listCasesMatch && listCasesMatch[2]) {
+    const arbitratorName = listCasesMatch[2].trim();
+    return {
+      type: QUERY_TYPES.ARBITRATOR_CASE_LISTING,
+      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
+    };
+  }
+  
+  // Check for "outcomes for cases handled by [name]" pattern
+  const outcomesPattern = /outcomes for cases handled by (.+)/i;
+  const outcomesMatch = queryLower.match(outcomesPattern);
+  
+  if (outcomesMatch && outcomesMatch[1]) {
+    const arbitratorName = outcomesMatch[1].trim();
+    return {
+      type: QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS,
+      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
+    };
+  }
+  
+  // If no patterns match, return null for fallback to OpenAI
+  return null;
+}
+
+/**
  * Process a natural language query about arbitration data
  * @param query The natural language query from the user
  */
@@ -339,17 +389,39 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
   queryType: string;
 }> {
   try {
-    // First, analyze the query to determine its type and extract parameters
-    const analysis = await analyzeQuery(query);
+    // First try direct pattern matching for common queries
+    const patternMatch = await patternMatchQuery(query);
     
-    // Then execute the appropriate query based on the analysis
-    const result = await executeQueryByType(analysis.type, analysis.parameters);
+    if (patternMatch) {
+      // Use pattern matching result
+      const result = await executeQueryByType(patternMatch.type, patternMatch.parameters);
+      
+      return {
+        answer: result.message,
+        data: result.data,
+        queryType: patternMatch.type,
+      };
+    }
     
-    return {
-      answer: result.message,
-      data: result.data,
-      queryType: analysis.type,
-    };
+    // If pattern matching didn't work, fallback to OpenAI analysis
+    try {
+      const analysis = await analyzeQuery(query);
+      const result = await executeQueryByType(analysis.type, analysis.parameters);
+      
+      return {
+        answer: result.message,
+        data: result.data,
+        queryType: analysis.type,
+      };
+    } catch (aiError) {
+      console.error("Error using OpenAI analysis:", aiError);
+      // Fallback to unknown query type if OpenAI fails
+      return {
+        answer: "I couldn't understand your question. Please try asking in a different way, such as 'How many cases has Smith handled?' or 'List cases handled by Smith'.",
+        data: null,
+        queryType: QUERY_TYPES.UNKNOWN,
+      };
+    }
   } catch (error) {
     console.error("Error processing natural language query:", error);
     return {
