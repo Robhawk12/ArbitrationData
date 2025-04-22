@@ -1,14 +1,26 @@
 import { useState } from "react";
+import { AlertTriangle } from "lucide-react";
 
 interface NlpQueryPanelProps {
   className?: string;
+}
+
+// Error types that we want to handle specifically
+type ErrorType = 
+  | "rate_limit" 
+  | "api_key" 
+  | "general";
+
+interface ErrorState {
+  type: ErrorType;
+  message: string;
 }
 
 export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,20 +41,50 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         },
       });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      
       const data = await response.json();
+      
+      if (!response.ok) {
+        // Try to parse the error from the response
+        if (data && typeof data === 'object' && 'error' in data) {
+          const errorMessage = data.error as string;
+          
+          // Check for specific error types
+          if (errorMessage.includes("quota") || errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+            setError({
+              type: "rate_limit",
+              message: "OpenAI API rate limit exceeded. Please try again later or contact support to update the API quota."
+            });
+          } else if (errorMessage.includes("invalid API key") || errorMessage.includes("authentication")) {
+            setError({
+              type: "api_key",
+              message: "API authentication error. The OpenAI API key may be invalid or expired."
+            });
+          } else {
+            setError({
+              type: "general",
+              message: errorMessage
+            });
+          }
+        } else {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        return;
+      }
       
       if (data && typeof data === 'object' && 'answer' in data) {
         setAnswer(data.answer as string);
       } else {
-        setError("Received an invalid response format from the server.");
+        setError({
+          type: "general",
+          message: "Received an invalid response format from the server."
+        });
       }
     } catch (err) {
       console.error("Failed to process natural language query:", err);
-      setError("An error occurred while processing your question. Please try again.");
+      setError({
+        type: "general",
+        message: "An error occurred while processing your question. Please try again."
+      });
     } finally {
       setIsLoading(false);
     }
