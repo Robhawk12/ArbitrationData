@@ -25,8 +25,11 @@ async function analyzeQuery(query: string): Promise<{
   parameters: Record<string, string | null>;
 }> {
   try {
+    console.log("Analyzing query:", query);
+    console.log("API Key exists:", !!process.env.OPENAI_API_KEY);
+    
     const response = await openai.chat.completions.create({
-      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+      model: "gpt-3.5-turbo", // Use a different model that might have less strict rate limits
       messages: [
         {
           role: "system",
@@ -58,6 +61,8 @@ async function analyzeQuery(query: string): Promise<{
       ],
       response_format: { type: "json_object" },
     });
+
+    console.log("OpenAI API response received");
 
     const result = JSON.parse(response.choices[0].message.content);
     
@@ -97,7 +102,7 @@ async function executeQueryByType(
         const result = await db
           .select({ count: sql`COUNT(*)` })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
           .execute();
         
         const count = Number(result[0]?.count || 0);
@@ -120,7 +125,7 @@ async function executeQueryByType(
             count: sql`COUNT(*)`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
           .groupBy(arbitrationCases.disposition)
           .execute();
         
@@ -165,11 +170,12 @@ async function executeQueryByType(
             countWithAward: sql`COUNT(NULLIF(award_amount, ''))`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`);
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`);
         
         // Add disposition filter if provided
         if (disposition) {
-          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
+          const dispositionValue = disposition; // Non-null assertion
+          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + dispositionValue + '%'})`) as any;
         }
         
         const result = await query.execute();
@@ -228,7 +234,7 @@ async function executeQueryByType(
             caseType: arbitrationCases.caseType,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`)
+          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
           .limit(50) // Limit to prevent extremely large results
           .execute();
         
@@ -273,11 +279,12 @@ async function executeQueryByType(
             count: sql`COUNT(*)`,
           })
           .from(arbitrationCases)
-          .where(sql`LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName || '') + '%'})`);
+          .where(sql`LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName ? respondentName : '') + '%'})`);
         
         // Add arbitrator filter if provided
         if (arbitratorName) {
-          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`) as any;
+          const arbitratorValue = arbitratorName; // Non-null assertion
+          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorValue + '%'})`) as any;
         }
         
         const results = await query.groupBy(arbitrationCases.disposition).execute();
