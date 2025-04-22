@@ -45,30 +45,40 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       if (!response.ok) {
         // Try to parse the error from the response
-        if (data && typeof data === 'object' && 'error' in data) {
-          const errorMessage = data.error as string;
-          
-          // Check for specific error types
-          if (errorMessage.includes("quota") || errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+        if (data && typeof data === 'object') {
+          if ('errorType' in data && 'error' in data) {
+            // Server has already classified the error type for us
             setError({
-              type: "rate_limit",
-              message: "OpenAI API rate limit exceeded. Please try again later or contact support to update the API quota."
+              type: data.errorType as ErrorType,
+              message: data.error as string
             });
-          } else if (errorMessage.includes("invalid API key") || errorMessage.includes("authentication")) {
-            setError({
-              type: "api_key",
-              message: "API authentication error. The OpenAI API key may be invalid or expired."
-            });
+          } else if ('error' in data) {
+            const errorMessage = data.error as string;
+            
+            // Fallback classification if the server didn't provide an errorType
+            if (errorMessage.includes("quota") || errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+              setError({
+                type: "rate_limit",
+                message: "OpenAI API rate limit exceeded. Please try again later or contact support to update the API quota."
+              });
+            } else if (errorMessage.includes("invalid API key") || errorMessage.includes("authentication")) {
+              setError({
+                type: "api_key",
+                message: "API authentication error. The OpenAI API key may be invalid or expired."
+              });
+            } else {
+              setError({
+                type: "general",
+                message: errorMessage
+              });
+            }
           } else {
-            setError({
-              type: "general",
-              message: errorMessage
-            });
+            throw new Error(`HTTP error ${response.status}`);
           }
+          return;
         } else {
           throw new Error(`HTTP error ${response.status}`);
         }
-        return;
       }
       
       if (data && typeof data === 'object' && 'answer' in data) {
@@ -137,8 +147,35 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       </form>
       
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded mt-4">
-          {error}
+        <div className={`border rounded p-4 mt-4 flex items-start gap-3 ${
+          error.type === "rate_limit" 
+            ? "bg-amber-50 border-amber-200 text-amber-700" 
+            : error.type === "api_key"
+              ? "bg-red-50 border-red-200 text-red-700"
+              : "bg-red-50 border-red-200 text-red-600"
+        }`}>
+          <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-medium mb-1">
+              {error.type === "rate_limit" 
+                ? "API Rate Limit Exceeded" 
+                : error.type === "api_key" 
+                  ? "API Key Error"
+                  : "Error Processing Query"}
+            </h4>
+            <p className="text-sm">{error.message}</p>
+            {error.type === "rate_limit" && (
+              <p className="text-xs mt-2">
+                This typically happens when the OpenAI API quota has been reached. 
+                Please try again later or contact the administrator to update the API quota.
+              </p>
+            )}
+            {error.type === "api_key" && (
+              <p className="text-xs mt-2">
+                The API key may be invalid or expired. Please contact the administrator to update the API key.
+              </p>
+            )}
+          </div>
         </div>
       )}
       

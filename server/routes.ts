@@ -603,9 +603,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await processNaturalLanguageQuery(query);
       res.json(result);
     } catch (error) {
+      // Check for specific OpenAI API errors
+      const err = error as Error;
+      if (err.message.includes('insufficient_quota') || err.message.includes('rate limit') || err.message.includes('429')) {
+        return res.status(429).json({ 
+          error: `OpenAI API rate limit exceeded: ${err.message}`,
+          answer: "I'm sorry, but the AI service is currently unavailable due to rate limiting. Please try again later.",
+          errorType: "rate_limit"
+        });
+      } else if (err.message.includes('invalid_api_key') || err.message.includes('authentication')) {
+        return res.status(401).json({ 
+          error: `OpenAI API authentication error: ${err.message}`,
+          answer: "There's an issue with the AI service authentication. Please contact the administrator.",
+          errorType: "api_key"
+        });
+      }
+      
+      // General error
       res.status(500).json({ 
-        error: `Failed to process natural language query: ${(error as Error).message}`,
-        answer: "I encountered an error processing your question. Please try again or rephrase your question."
+        error: `Failed to process natural language query: ${err.message}`,
+        answer: "I encountered an error processing your question. Please try again or rephrase your question.",
+        errorType: "general"
       });
     }
   });
