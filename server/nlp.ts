@@ -169,8 +169,7 @@ async function executeQueryByType(
         
         // Add disposition filter if provided
         if (disposition) {
-          // Use a type assertion to fix the TypeScript error
-          (query as any) = (query as any).where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`);
+          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
         }
         
         const result = await query.execute();
@@ -278,8 +277,7 @@ async function executeQueryByType(
         
         // Add arbitrator filter if provided
         if (arbitratorName) {
-          // Use a type assertion to fix the TypeScript error
-          (query as any) = (query as any).where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`);
+          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName || '') + '%'})`) as any;
         }
         
         const results = await query.groupBy(arbitrationCases.disposition).execute();
@@ -332,118 +330,6 @@ async function executeQueryByType(
 }
 
 /**
- * Direct pattern matching for common queries when OpenAI API fails
- * @param query The natural language query from the user
- */
-async function patternMatchQuery(query: string): Promise<{
-  type: string;
-  parameters: Record<string, string | null>;
-} | null> {
-  const queryLower = query.toLowerCase().trim();
-  
-  // Extract potential arbitrator name for simpler matching
-  let potentialArbitratorName = null;
-  
-  // Check for "how many cases has [name] handled" pattern
-  const caseCountPattern = /how many cases has (.+?)( handled)?/i;
-  const caseCountMatch = queryLower.match(caseCountPattern);
-  
-  if (caseCountMatch && caseCountMatch[1]) {
-    const arbitratorName = caseCountMatch[1].trim();
-    return {
-      type: QUERY_TYPES.ARBITRATOR_CASE_COUNT,
-      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // Check for "list cases handled by [name]" pattern
-  const listCasesPattern = /(list|show|display)( all)? cases( handled)? by (.+)/i;
-  const listCasesMatch = queryLower.match(listCasesPattern);
-  
-  if (listCasesMatch && listCasesMatch[4]) {
-    const arbitratorName = listCasesMatch[4].trim();
-    return {
-      type: QUERY_TYPES.ARBITRATOR_CASE_LISTING,
-      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // Multiple patterns for outcome analysis
-  // Pattern 1: "outcomes for cases handled by [name]"
-  const outcomesPattern1 = /(outcomes?|results|dispositions?)( for| of)? cases( handled)? by (.+)/i;
-  const outcomesMatch1 = queryLower.match(outcomesPattern1);
-  
-  if (outcomesMatch1 && outcomesMatch1[4]) {
-    const arbitratorName = outcomesMatch1[4].trim();
-    return {
-      type: QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS,
-      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // Pattern 2: "what are the outcomes for [name]"
-  const outcomesPattern2 = /what are the (outcomes?|results|dispositions?)( for| of)? (.+)/i;
-  const outcomesMatch2 = queryLower.match(outcomesPattern2);
-  
-  if (outcomesMatch2 && outcomesMatch2[3]) {
-    const arbitratorName = outcomesMatch2[3].trim();
-    return {
-      type: QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS,
-      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // Check for average award amount pattern
-  const avgAwardPattern = /(average|mean|typical) (award|amount|sum|money)( given| awarded)? by (.+)/i;
-  const avgAwardMatch = queryLower.match(avgAwardPattern);
-  
-  if (avgAwardMatch && avgAwardMatch[4]) {
-    const arbitratorName = avgAwardMatch[4].trim();
-    return {
-      type: QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD,
-      parameters: { arbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // If we have a name in the query, try to find what the question is asking
-  if (queryLower.includes("smith")) {
-    // Fallback to case count if it's clearly about Smith but pattern didn't match
-    potentialArbitratorName = "smith";
-    
-    if (queryLower.includes("outcome") || queryLower.includes("result") || 
-        queryLower.includes("disposition") || queryLower.includes("what are")) {
-      return {
-        type: QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS,
-        parameters: { arbitratorName: potentialArbitratorName, respondentName: null, disposition: null, caseType: null }
-      };
-    }
-    
-    if (queryLower.includes("list") || queryLower.includes("show") || queryLower.includes("display")) {
-      return {
-        type: QUERY_TYPES.ARBITRATOR_CASE_LISTING,
-        parameters: { arbitratorName: potentialArbitratorName, respondentName: null, disposition: null, caseType: null }
-      };
-    }
-    
-    if (queryLower.includes("average") || queryLower.includes("award") || queryLower.includes("amount")) {
-      return {
-        type: QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD,
-        parameters: { arbitratorName: potentialArbitratorName, respondentName: null, disposition: null, caseType: null }
-      };
-    }
-    
-    // Default to case count for any Smith query we can't categorize
-    return {
-      type: QUERY_TYPES.ARBITRATOR_CASE_COUNT,
-      parameters: { arbitratorName: potentialArbitratorName, respondentName: null, disposition: null, caseType: null }
-    };
-  }
-  
-  // If no patterns match, return null for fallback to OpenAI
-  return null;
-}
-
-/**
  * Process a natural language query about arbitration data
  * @param query The natural language query from the user
  */
@@ -453,39 +339,17 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
   queryType: string;
 }> {
   try {
-    // First try direct pattern matching for common queries
-    const patternMatch = await patternMatchQuery(query);
+    // First, analyze the query to determine its type and extract parameters
+    const analysis = await analyzeQuery(query);
     
-    if (patternMatch) {
-      // Use pattern matching result
-      const result = await executeQueryByType(patternMatch.type, patternMatch.parameters);
-      
-      return {
-        answer: result.message,
-        data: result.data,
-        queryType: patternMatch.type,
-      };
-    }
+    // Then execute the appropriate query based on the analysis
+    const result = await executeQueryByType(analysis.type, analysis.parameters);
     
-    // If pattern matching didn't work, fallback to OpenAI analysis
-    try {
-      const analysis = await analyzeQuery(query);
-      const result = await executeQueryByType(analysis.type, analysis.parameters);
-      
-      return {
-        answer: result.message,
-        data: result.data,
-        queryType: analysis.type,
-      };
-    } catch (aiError) {
-      console.error("Error using OpenAI analysis:", aiError);
-      // Fallback to unknown query type if OpenAI fails
-      return {
-        answer: "I couldn't understand your question. Please try asking in a different way, such as 'How many cases has Smith handled?' or 'List cases handled by Smith'.",
-        data: null,
-        queryType: QUERY_TYPES.UNKNOWN,
-      };
-    }
+    return {
+      answer: result.message,
+      data: result.data,
+      queryType: analysis.type,
+    };
   } catch (error) {
     console.error("Error processing natural language query:", error);
     return {
