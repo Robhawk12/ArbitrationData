@@ -51,10 +51,10 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
 
   const examples = [
     { type: "Count", query: "How many cases has Smith handled?" },
-    { type: "Outcomes", query: "What are the outcomes for cases handled by Becker?" },
-    { type: "Awards", query: "What is the average award amount given by Johnson?" },
-    { type: "Listing", query: "List the cases handled by Martinez" },
-    { type: "Company", query: "How many cases involve Bank of America as respondent?" },
+    { type: "Outcomes", query: "What are the outcomes for cases handled by Smith?" },
+    { type: "Awards", query: "What is the average award amount given by Smith?" },
+    { type: "Listing", query: "List the cases handled by Smith" },
+    { type: "Company", query: "What are the outcomes for Bank of America as respondent?" },
   ];
 
   const setExampleQuery = (exampleQuery: string) => {

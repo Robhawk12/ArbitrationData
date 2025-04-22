@@ -113,15 +113,11 @@ async function analyzeQuery(query: string): Promise<{
   try {
     console.log("Analyzing query:", query);
     const lowerQuery = query.toLowerCase();
-    
-    // Default parameters
     let type = QUERY_TYPES.UNKNOWN;
-    let arbitratorName = extractName(query);
-    let respondentName = extractRespondentName(query);
+    let arbitratorName = null;
+    let respondentName = null;
     let disposition = null;
     let caseType = null;
-    
-    // Determine query type based on keywords and patterns
     
     // How many cases has X handled?
     if (
@@ -129,6 +125,31 @@ async function analyzeQuery(query: string): Promise<{
       (lowerQuery.includes("case") || lowerQuery.includes("cases"))
     ) {
       type = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
+      
+      // Extract name from "How many cases has [name] handled?"
+      const hasPattern = /has\s+([A-Za-z\s\.\-']+)\s+(?:handled|overseen|arbitrated|managed)/i;
+      const didPattern = /did\s+([A-Za-z\s\.\-']+)\s+(?:handle|oversee|arbitrate|manage)/i;
+      const byPattern = /(?:by|from|with)\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      
+      let match = query.match(hasPattern) || query.match(didPattern) || query.match(byPattern);
+      
+      if (match && match[1]) {
+        arbitratorName = match[1].trim();
+      } else {
+        // Last resort: look for capitalized words after common phrases
+        const words = query.split(/\s+/);
+        for (let i = 0; i < words.length; i++) {
+          if (words[i].toLowerCase() === "has" || words[i].toLowerCase() === "by") {
+            if (i + 1 < words.length && /^[A-Z]/.test(words[i+1])) {
+              arbitratorName = words[i+1];
+              if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
+                arbitratorName += " " + words[i+2];
+              }
+              break;
+            }
+          }
+        }
+      }
     }
     
     // What are the outcomes for cases handled by X?
@@ -137,10 +158,26 @@ async function analyzeQuery(query: string): Promise<{
       !lowerQuery.includes("average") &&
       !lowerQuery.includes("award amount")
     ) {
-      if (respondentName) {
-        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
-      } else {
+      // Extract arbitrator name from "cases handled by [name]"
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const forPattern = /outcomes\s+for\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      
+      const match = query.match(byPattern) || query.match(forPattern);
+      
+      if (match && match[1]) {
+        arbitratorName = match[1].trim();
         type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+      } else {
+        // Check for respondent patterns
+        const respPattern = /(?:involving|with|against|for|by)\s+(?:respondent|company)\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+        const companyMatch = query.match(respPattern);
+        
+        if (companyMatch && companyMatch[1]) {
+          respondentName = companyMatch[1].trim();
+          type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+        } else {
+          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+        }
       }
     }
     
@@ -150,6 +187,16 @@ async function analyzeQuery(query: string): Promise<{
       (lowerQuery.includes("award") || lowerQuery.includes("amount") || lowerQuery.includes("damages"))
     ) {
       type = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
+      
+      // Extract name from "given by [name]" or "awarded by [name]"
+      const byPattern = /(?:given|awarded|granted|authorized)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const ofPattern = /(?:award|amount).+?\s+of\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      
+      const match = query.match(byPattern) || query.match(ofPattern);
+      
+      if (match && match[1]) {
+        arbitratorName = match[1].trim();
+      }
       
       // Check for disposition in queries like "What is the average award for consumers by X?"
       if (lowerQuery.includes("for consumer")) {
@@ -170,6 +217,44 @@ async function analyzeQuery(query: string): Promise<{
        lowerQuery.includes("display"))
     ) {
       type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
+      
+      // Extract name from "cases handled by [name]"
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      
+      const match = query.match(byPattern) || query.match(ofPattern);
+      
+      if (match && match[1]) {
+        arbitratorName = match[1].trim();
+      } else {
+        // Last resort: look for capitalized words after keywords
+        const words = query.split(/\s+/);
+        for (let i = 0; i < words.length; i++) {
+          if (words[i].toLowerCase() === "by" || words[i].toLowerCase() === "arbitrator") {
+            if (i + 1 < words.length && /^[A-Z]/.test(words[i+1])) {
+              arbitratorName = words[i+1];
+              if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
+                arbitratorName += " " + words[i+2];
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // If we didn't extract a name but the query type requires one, try the generic name extractors
+    if (!arbitratorName && (
+      type === QUERY_TYPES.ARBITRATOR_CASE_COUNT || 
+      type === QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS || 
+      type === QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD || 
+      type === QUERY_TYPES.ARBITRATOR_CASE_LISTING
+    )) {
+      arbitratorName = extractName(query);
+    }
+    
+    if (!respondentName && type === QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS) {
+      respondentName = extractRespondentName(query);
     }
     
     console.log("Analyzed query type:", type);
