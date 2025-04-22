@@ -1,10 +1,6 @@
-import OpenAI from "openai";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
-
-// The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Define the types of questions the system can handle
 const QUERY_TYPES = {
@@ -17,6 +13,53 @@ const QUERY_TYPES = {
 };
 
 /**
+ * Extract name from a query using a variety of patterns
+ * @param query The query text
+ * @returns The extracted name or null if not found
+ */
+function extractName(query: string): string | null {
+  // Common name extraction patterns
+  const patterns = [
+    /(?:by|for|from|about|handled by)\s+([A-Za-z\s\.]+?)(?:\s+(?:has|have|handled|cases|with|against|and|or|in|the)|$)/i,
+    /([A-Za-z\s\.]+?)(?:'s cases)/i,
+    /([A-Za-z\s\.]+?)(?:\s+has handled)/i,
+    /([A-Za-z\s\.]+?)(?:\s+ruled)/i,
+    /arbitrator\s+([A-Za-z\s\.]+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract respondent name from a query 
+ * @param query The query text
+ * @returns The extracted respondent name or null if not found
+ */
+function extractRespondentName(query: string): string | null {
+  // Common respondent name extraction patterns
+  const patterns = [
+    /(?:against|involving|with respondent|company)\s+([A-Za-z\s\.]+?)(?:\s+(?:as|and|or|in|the|by|with)|$)/i,
+    /respondent\s+([A-Za-z\s\.]+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Analyzes a natural language query to determine the type of question being asked
  * @param query The natural language query from the user
  */
@@ -26,54 +69,77 @@ async function analyzeQuery(query: string): Promise<{
 }> {
   try {
     console.log("Analyzing query:", query);
-    console.log("API Key exists:", !!process.env.OPENAI_API_KEY);
+    const lowerQuery = query.toLowerCase();
     
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", // Use a different model that might have less strict rate limits
-      messages: [
-        {
-          role: "system",
-          content: `You are an AI assistant that helps analyze arbitration case data queries. 
-          Your task is to determine the type of question being asked and extract relevant parameters.
-          
-          Question types include:
-          1. ${QUERY_TYPES.ARBITRATOR_CASE_COUNT} - How many cases an arbitrator has handled
-          2. ${QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS} - Outcomes for cases handled by a specific arbitrator
-          3. ${QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD} - Average award amount given by a specific arbitrator
-          4. ${QUERY_TYPES.ARBITRATOR_CASE_LISTING} - List of all cases handled by a specific arbitrator
-          5. ${QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS} - Outcomes of cases involving a specific respondent
-          
-          For each query, extract parameters like:
-          - arbitratorName: The name of the arbitrator mentioned
-          - respondentName: The name of the respondent company mentioned
-          - disposition: The outcome/ruling mentioned (e.g., "for complainant", "for respondent")
-          - caseType: The type of case mentioned
-          
-          Respond with JSON in this format: 
-          { "type": "query_type", "parameters": { "arbitratorName": "name", "respondentName": "name", ... } }
-          
-          Set any parameter that's not mentioned to null.`,
-        },
-        {
-          role: "user",
-          content: query,
-        },
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    console.log("OpenAI API response received");
-
-    const result = JSON.parse(response.choices[0].message.content);
+    // Default parameters
+    let type = QUERY_TYPES.UNKNOWN;
+    let arbitratorName = extractName(query);
+    let respondentName = extractRespondentName(query);
+    let disposition = null;
+    let caseType = null;
     
-    // Validate that the result has the expected format
-    if (!result.type || !result.parameters) {
-      return { type: QUERY_TYPES.UNKNOWN, parameters: {} };
+    // Determine query type based on keywords and patterns
+    
+    // How many cases has X handled?
+    if (
+      (lowerQuery.includes("how many") || lowerQuery.includes("number of")) &&
+      (lowerQuery.includes("case") || lowerQuery.includes("cases"))
+    ) {
+      type = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
     }
     
+    // What are the outcomes for cases handled by X?
+    else if (
+      (lowerQuery.includes("outcome") || lowerQuery.includes("result") || lowerQuery.includes("ruling")) &&
+      !lowerQuery.includes("average") &&
+      !lowerQuery.includes("award amount")
+    ) {
+      if (respondentName) {
+        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+      } else {
+        type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+      }
+    }
+    
+    // What is the average award amount given by X?
+    else if (
+      (lowerQuery.includes("average") || lowerQuery.includes("mean")) &&
+      (lowerQuery.includes("award") || lowerQuery.includes("amount") || lowerQuery.includes("damages"))
+    ) {
+      type = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
+      
+      // Check for disposition in queries like "What is the average award for consumers by X?"
+      if (lowerQuery.includes("for consumer")) {
+        disposition = "for consumer";
+      } else if (lowerQuery.includes("for respondent")) {
+        disposition = "for respondent";
+      } else if (lowerQuery.includes("for claimant")) {
+        disposition = "for claimant";
+      }
+    }
+    
+    // List the cases handled by X.
+    else if (
+      (lowerQuery.includes("list") || 
+       lowerQuery.includes("show") || 
+       lowerQuery.includes("what case") || 
+       lowerQuery.includes("which case") ||
+       lowerQuery.includes("display"))
+    ) {
+      type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
+    }
+    
+    console.log("Analyzed query type:", type);
+    console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
+    
     return {
-      type: result.type,
-      parameters: result.parameters,
+      type,
+      parameters: {
+        arbitratorName,
+        respondentName,
+        disposition,
+        caseType,
+      },
     };
   } catch (error) {
     console.error("Error analyzing query:", error);
