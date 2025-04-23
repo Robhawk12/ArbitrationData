@@ -765,16 +765,15 @@ async function executeQueryByType(
         }
         
         limitedCases.forEach((c, i) => {
-          message += `${i + 1}.\n`;
-          message += `    Case ID: ${c.caseId}\n`;
-          message += `    Case Type: ${c.caseType || "Unknown"}\n`;
-          message += `    Arbitrator: ${c.arbitratorName}\n`;
-          message += `    Respondent: ${c.respondentName || "Unknown"}\n`;
-          message += `    Disposition: ${c.disposition || "Unknown"}\n`;
+          message += `${i + 1}. Case ID: ${c.caseId}\n`;
+          message += `   Case Type: ${c.caseType || "Unknown"}\n`;
+          message += `   Arbitrator: ${c.arbitratorName}\n`;
+          message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
+          message += `   Disposition: ${c.disposition || "Unknown"}\n`;
           
           // Show award amount for awarded cases
           if (c.disposition === "Awarded" && c.awardAmount) {
-            message += `    Award Amount: $${c.awardAmount}\n`;
+            message += `   Award Amount: $${c.awardAmount}\n`;
           }
           
           message += "\n";
