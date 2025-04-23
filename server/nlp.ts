@@ -92,20 +92,29 @@ function doNamesMatch(name1: string, name2: string): boolean {
 
 // Define the types of questions the system can handle
 const QUERY_TYPES = {
+  // Arbitrator-focused queries
   ARBITRATOR_CASE_COUNT: "arbitrator_case_count",
-  ARBITRATOR_OUTCOME_ANALYSIS: "arbitrator_outcome_analysis",
+  ARBITRATOR_OUTCOME_ANALYSIS: "arbitrator_outcome_analysis", 
   ARBITRATOR_AVERAGE_AWARD: "arbitrator_average_award",
   ARBITRATOR_CASE_LISTING: "arbitrator_case_listing",
+  
+  // Respondent-focused queries
+  RESPONDENT_CASE_COUNT: "respondent_case_count",
   RESPONDENT_OUTCOME_ANALYSIS: "respondent_outcome_analysis",
+  
+  // Combined queries (arbitrator + respondent)
+  COMBINED_OUTCOME_ANALYSIS: "combined_outcome_analysis",
+  
+  // Unknown query
   UNKNOWN: "unknown",
 };
 
 /**
- * Extract name from a query using a variety of patterns and clean it of titles/suffixes
+ * Extract arbitrator name from a query using patterns specific to arbitrator roles
  * @param query The query text
- * @returns The extracted name or null if not found
+ * @returns The extracted arbitrator name or null if not found
  */
-function extractName(query: string): string | null {
+function extractArbitratorName(query: string): string | null {
   // Look for specific patterns first (these are most likely to be accurate)
   const specificPatterns = [
     // "by John Smith"
@@ -298,6 +307,40 @@ function extractRespondentName(query: string): string | null {
 }
 
 /**
+ * Checks if a query contains both arbitrator and respondent references
+ * @param query The query text to analyze
+ * @returns An object containing extracted arbitrator and respondent names, or null if not found
+ */
+function extractCombinedQuery(query: string): { arbitratorName: string | null; respondentName: string | null } | null {
+  const lowerQuery = query.toLowerCase();
+  
+  // Check if the query has indicators of a combined question about arbitrator and respondent
+  const hasCombinedIndicators = 
+    (lowerQuery.includes("rule") || 
+     lowerQuery.includes("ruled") || 
+     lowerQuery.includes("decision") || 
+     lowerQuery.includes("decide")) &&
+    (lowerQuery.includes("against") || 
+     lowerQuery.includes("for") || 
+     lowerQuery.includes("involving") || 
+     lowerQuery.includes("with") ||
+     lowerQuery.includes("between"));
+  
+  if (!hasCombinedIndicators) return null;
+  
+  // Try to extract both names
+  const arbitratorName = extractArbitratorName(query);
+  const respondentName = extractRespondentName(query);
+  
+  // Only return a match if we found both names
+  if (arbitratorName && respondentName) {
+    return { arbitratorName, respondentName };
+  }
+  
+  return null;
+}
+
+/**
  * Analyzes a natural language query to determine the type of question being asked
  * @param query The natural language query from the user
  */
@@ -313,6 +356,28 @@ async function analyzeQuery(query: string): Promise<{
     let respondentName = null;
     let disposition = null;
     let caseType = null;
+    
+    // First, check if this is a combined query (both arbitrator and respondent)
+    const combinedQuery = extractCombinedQuery(query);
+    if (combinedQuery) {
+      type = QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
+      arbitratorName = combinedQuery.arbitratorName;
+      respondentName = combinedQuery.respondentName;
+      
+      // We've identified this as a combined query, so return early
+      console.log("Analyzed as combined query with both arbitrator and respondent");
+      console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
+      
+      return {
+        type,
+        parameters: {
+          arbitratorName,
+          respondentName,
+          disposition,
+          caseType,
+        },
+      };
+    }
     
     // How many cases has X handled?
     if (
@@ -463,7 +528,7 @@ async function analyzeQuery(query: string): Promise<{
       type === QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD || 
       type === QUERY_TYPES.ARBITRATOR_CASE_LISTING
     )) {
-      arbitratorName = extractName(query);
+      arbitratorName = extractArbitratorName(query);
     }
     
     if (!respondentName && type === QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS) {
@@ -940,6 +1005,11 @@ async function executeQueryByType(
           .groupBy(arbitrationCases.respondentName)
           .execute();
           
+        // Standardize the respondent name for consistent matching
+        const standardizedRespondentName = standardizeName(respondentName);
+          
+        // Use broader pattern matching for companies with similar names
+        // e.g. "Coinbase" should match "Coinbase Inc", "Coinbase Global", etc.
         const matchingNames = similarNameResults
           .filter(item => item.name)
           .map(item => item.name);
@@ -1055,6 +1125,116 @@ async function executeQueryByType(
         };
       }
       
+      case QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS: {
+        if (!arbitratorName || !respondentName) {
+          return { 
+            data: null, 
+            message: "Could not identify both arbitrator and respondent names in the query." 
+          };
+        }
+        
+        // Get all distinct arbitrator names from the database that match our query
+        const allArbitratorNames = await db
+          .select({ name: arbitrationCases.arbitratorName })
+          .from(arbitrationCases)
+          .where(
+            sql`arbitrator_name IS NOT NULL AND LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName.split(' ').pop() || '' : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.arbitratorName)
+          .execute();
+          
+        // Find all matching arbitrator names using our advanced name matching logic
+        const matchingArbitratorNames = allArbitratorNames
+          .filter(item => item.name && doNamesMatch(arbitratorName, item.name))
+          .map(item => item.name);
+          
+        // Get all distinct respondent names from the database that match our query
+        const allRespondentNames = await db
+          .select({ name: arbitrationCases.respondentName })
+          .from(arbitrationCases)
+          .where(
+            sql`respondent_name IS NOT NULL AND LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName ? respondentName : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.respondentName)
+          .execute();
+          
+        // Get matching respondent names
+        const matchingRespondentNames = allRespondentNames
+          .filter(item => item.name)
+          .map(item => item.name);
+          
+        if (matchingArbitratorNames.length === 0 || matchingRespondentNames.length === 0) {
+          return {
+            data: { outcomes: [] },
+            message: `No cases found with arbitrator ${arbitratorName} and respondent ${respondentName}.`,
+          };
+        }
+        
+        // Aggregate outcomes for the intersection of these arbitrators and respondents
+        const allOutcomes = new Map<string, number>();
+        let totalCases = 0;
+        
+        // Build a query that combines both arbitrator and respondent constraints
+        for (const arbName of matchingArbitratorNames) {
+          for (const respName of matchingRespondentNames) {
+            const results = await db
+              .select({
+                disposition: arbitrationCases.disposition,
+                count: sql`COUNT(*)`,
+              })
+              .from(arbitrationCases)
+              .where(sql`arbitrator_name = ${arbName} AND respondent_name = ${respName}`)
+              .groupBy(arbitrationCases.disposition)
+              .execute();
+              
+            // Aggregate results
+            for (const result of results) {
+              const disposition = result.disposition || "Unknown";
+              const count = Number(result.count || 0);
+              totalCases += count;
+              
+              // Add to our aggregate map
+              const currentCount = allOutcomes.get(disposition) || 0;
+              allOutcomes.set(disposition, currentCount + count);
+            }
+          }
+        }
+        
+        if (allOutcomes.size === 0) {
+          return {
+            data: { outcomes: [] },
+            message: `No cases found where arbitrator ${arbitratorName} ruled on cases involving respondent ${respondentName}.`,
+          };
+        }
+        
+        // Format the results
+        const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
+          disposition,
+          count,
+        }));
+        
+        // Create a summary message
+        let message = `Found ${totalCases} cases where arbitrator ${arbitratorName} ruled on cases involving respondent ${respondentName}. The outcomes are:\n`;
+        
+        // Sort outcomes by count (highest first)
+        outcomes.sort((a, b) => b.count - a.count);
+        
+        outcomes.forEach((o) => {
+          const percentage = ((o.count / totalCases) * 100).toFixed(1);
+          message += `- ${o.disposition}: ${o.count} cases (${percentage}%)\n`;
+        });
+        
+        return {
+          data: { 
+            outcomes,
+            totalCases,
+            matchingArbitratorNames,
+            matchingRespondentNames
+          },
+          message,
+        };
+      }
+        
       default:
         return {
           data: null,
