@@ -271,6 +271,12 @@ function standardizeMiddleName(name: string): string {
 function extractRespondentName(query: string): string | null {
   // Common respondent name extraction patterns
   const patterns = [
+    // Special patterns for "cases for X as respondent" - this needs to be first to catch it correctly
+    /(?:list|show)?\s*cases?\s+for\s+([A-Za-z0-9\s\.\-&']+?)\s+as\s+respondent/i,
+    
+    // Generic pattern for "list cases for X"
+    /(?:list|show)\s+cases?\s+for\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$|\s+(?:and|or|in|the))/i,
+    
     // Explicit patterns for "respondent" keyword
     /(?:respondent|company)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
     /respondent\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
@@ -283,11 +289,7 @@ function extractRespondentName(query: string): string | null {
     
     // Patterns for outcomes phrasing
     /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i,
-    
-    // Special pattern for "cases for X as respondent"
-    /(?:cases?\s+for|for)\s+([A-Za-z0-9\s\.\-&']+?)\s+as\s+respondent/i,
-    /(?:list|show)\s+cases?\s+for\s+([A-Za-z0-9\s\.\-&']+?)(?:\s+as\s+respondent|\s+with|\s+against|[,\.\?]|$)/i
+    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
   ];
   
   for (const pattern of patterns) {
