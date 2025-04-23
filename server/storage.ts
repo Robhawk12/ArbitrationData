@@ -176,10 +176,23 @@ export class DatabaseStorage implements IStorage {
       
       const column = columnMap[sortField];
       if (column) {
-        if (sortOrder === 'desc') {
-          queryBuilder = queryBuilder.orderBy(desc(column));
+        // Special handling for columns that might contain NULL values
+        if (['consumerAttorney', 'arbitratorName', 'respondentName', 'disposition', 'claimAmount', 
+             'awardAmount', 'filingDate', 'caseType'].includes(sortField)) {
+          if (sortOrder === 'desc') {
+            // Put non-null values first, then nulls
+            queryBuilder = queryBuilder.orderBy(sql`COALESCE(${column}, '') DESC NULLS LAST`);
+          } else {
+            // Put nulls last when sorting ascending
+            queryBuilder = queryBuilder.orderBy(sql`COALESCE(${column}, '') ASC NULLS LAST`);
+          }
         } else {
-          queryBuilder = queryBuilder.orderBy(column);
+          // Normal column sorting for non-nullable columns
+          if (sortOrder === 'desc') {
+            queryBuilder = queryBuilder.orderBy(desc(column));
+          } else {
+            queryBuilder = queryBuilder.orderBy(column);
+          }
         }
       } else {
         // Default sorting if the column doesn't exist
