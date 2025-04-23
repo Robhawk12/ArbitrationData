@@ -52,6 +52,8 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [searchValue, setSearchValue] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
     arbitrator: "",
     respondent: "",
@@ -78,7 +80,7 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
     data: ArbitrationCase[], 
     pagination: PaginationData 
   }>({
-    queryKey: ['/api/cases', page, rowsPerPage, filter],
+    queryKey: ['/api/cases', page, rowsPerPage, filter, sortField, sortOrder],
     queryFn: async () => {
       // Create URL with query parameters
       const params = new URLSearchParams();
@@ -86,6 +88,11 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
       params.append('limit', rowsPerPage.toString());
       if (filter) {
         params.append('filter', filter);
+      }
+      // Add sort parameters if set
+      if (sortField) {
+        params.append('sortField', sortField);
+        params.append('sortOrder', sortOrder);
       }
       const result = await fetch(`/api/cases?${params.toString()}`, {
         credentials: "include"
@@ -121,6 +128,19 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
   const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setRowsPerPage(parseInt(e.target.value));
     setPage(1); // Reset to first page when changing rows per page
+  };
+  
+  // Handle sort
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle order if clicking the same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field and default to ascending
+      setSortField(field);
+      setSortOrder('asc');
+    }
+    setPage(1); // Reset to first page when sorting
   };
   
   // Handle search
@@ -532,16 +552,166 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
         <table className="data-table w-full border-collapse">
           <thead>
             <tr className="bg-[#d6e9d9]">
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Case ID</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Arbitrator Name</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Respondent</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Consumer Attorney</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Disposition</th>
-              <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Claim Amount</th>
-              <th className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200">Award Amount</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Filing Date</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Case Type</th>
-              <th className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200">Forum</th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('caseId')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Case ID</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'caseId' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'caseId' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('arbitratorName')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Arbitrator Name</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'arbitratorName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'arbitratorName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('respondentName')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Respondent</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'respondentName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'respondentName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('consumerAttorney')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Consumer Attorney</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'consumerAttorney' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'consumerAttorney' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('disposition')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Disposition</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'disposition' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'disposition' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('claimAmount')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Claim Amount</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'claimAmount' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'claimAmount' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-right font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('awardAmount')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Award Amount</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'awardAmount' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'awardAmount' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('filingDate')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Filing Date</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'filingDate' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'filingDate' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('caseType')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Case Type</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'caseType' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'caseType' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
+              <th 
+                className="p-2 text-left font-semibold text-[#11572e] border-b border-neutral-200 cursor-pointer hover:bg-[#c9e0cc] transition-colors duration-200"
+                onClick={() => handleSort('forum')}
+              >
+                <div className="flex items-center justify-between">
+                  <span>Forum</span>
+                  <div className="flex flex-col">
+                    <svg className={`w-3 h-2 ${sortField === 'forum' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14l5-5 5 5H7z"/>
+                    </svg>
+                    <svg className={`w-3 h-2 ${sortField === 'forum' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 10l5 5 5-5H7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
