@@ -435,6 +435,7 @@ export class DatabaseStorage implements IStorage {
     
     // Get award amount statistics
     // We need to cast awardAmount to numeric for calculations with careful validation
+    // Filter for cases where disposition is "AWARD" (case-insensitive)
     const awardStats = await db.execute(sql`
       SELECT 
         SUM(CASE WHEN ${arbitrationCases.awardAmount} ~ '^[0-9]+(\.[0-9]+)?$' 
@@ -452,6 +453,7 @@ export class DatabaseStorage implements IStorage {
       FROM ${arbitrationCases}
       WHERE ${arbitrationCases.awardAmount} IS NOT NULL 
       AND ${arbitrationCases.duplicateOf} IS NULL
+      AND LOWER(${arbitrationCases.disposition}) LIKE '%award%'
     `);
     
     // Parse award statistics results

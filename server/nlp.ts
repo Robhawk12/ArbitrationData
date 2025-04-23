@@ -630,8 +630,11 @@ async function executeQueryByType(
             .from(arbitrationCases)
             .where(sql`arbitrator_name = ${name}`);
           
-          // Add disposition filter if provided
-          if (disposition) {
+          // Only include cases where disposition contains "AWARD" for award calculations
+          query = query.where(sql`LOWER(disposition) LIKE '%award%'`) as any;
+          
+          // Add additional disposition filter if provided
+          if (disposition && !disposition.toLowerCase().includes('award')) {
             query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
           }
           
