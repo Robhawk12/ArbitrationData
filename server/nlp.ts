@@ -55,15 +55,8 @@ function parseNameComponents(name: string): {
  * @param name1 First name to compare
  * @param name2 Second name to compare
  * @returns True if names match according to rules, false otherwise
- */
-/**
- * Determines if two names match according to our standardized rules.
- * Always applies name standardization before comparison to ensure consistent matching
- * across the application.
  * 
- * @param name1 First name to compare
- * @param name2 Second name to compare
- * @returns True if names match according to rules, false otherwise
+ * NOTE: Always applies standardizeName() before comparing to ensure consistency
  */
 function doNamesMatch(name1: string, name2: string): boolean {
   // First standardize both names to have consistent formatting
@@ -262,9 +255,9 @@ function standardizeMiddleName(name: string): string {
 }
 
 /**
- * Extract respondent name from a query 
+ * Extract respondent name from a query and standardize it
  * @param query The query text
- * @returns The extracted respondent name or null if not found
+ * @returns The extracted and standardized respondent name or null if not found
  */
 function extractRespondentName(query: string): string | null {
   // Common respondent name extraction patterns
@@ -295,7 +288,9 @@ function extractRespondentName(query: string): string | null {
           name.length < 3) {
         continue;
       }
-      return name;
+      
+      // For respondent names, apply standardization to ensure consistent matching
+      return standardizeName(name);
     }
   }
   
