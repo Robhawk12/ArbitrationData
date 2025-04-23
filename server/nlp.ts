@@ -856,24 +856,71 @@ async function executeQueryByType(
           return { data: null, message: "No respondent name specified in the query." };
         }
         
-        // Build the query
-        let query = db
-          .select({
-            disposition: arbitrationCases.disposition,
-            count: sql`COUNT(*)`,
-          })
+        // First get all matching respondent names to handle variations
+        const similarNameResults = await db
+          .select({ name: arbitrationCases.respondentName })
           .from(arbitrationCases)
-          .where(sql`LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName ? respondentName : '') + '%'})`);
-        
-        // Add arbitrator filter if provided
-        if (arbitratorName) {
-          const arbitratorValue = arbitratorName; // Non-null assertion
-          query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorValue + '%'})`) as any;
+          .where(sql`respondent_name IS NOT NULL AND LOWER(respondent_name) LIKE LOWER(${'%' + (respondentName ? respondentName : '') + '%'})`)
+          .groupBy(arbitrationCases.respondentName)
+          .execute();
+          
+        const matchingNames = similarNameResults
+          .filter(item => item.name)
+          .map(item => item.name);
+          
+        if (matchingNames.length === 0) {
+          return {
+            data: { outcomes: [] },
+            message: `No cases found for respondent ${respondentName}${
+              arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
+            }.`,
+          };
         }
         
-        const results = await query.groupBy(arbitrationCases.disposition).execute();
+        // Get the outcomes with all matching respondent names
+        const allOutcomes = new Map<string, number>();
+        let totalCases = 0;
+        const nameStats = new Map<string, number>();
         
-        if (results.length === 0) {
+        // Process each matching respondent name
+        for (const name of matchingNames) {
+          // Build query for this specific respondent name
+          let query = db
+            .select({
+              disposition: arbitrationCases.disposition,
+              count: sql`COUNT(*)`,
+            })
+            .from(arbitrationCases)
+            .where(sql`respondent_name = ${name}`);
+          
+          // Add arbitrator filter if provided
+          if (arbitratorName) {
+            const arbitratorValue = arbitratorName;
+            query = query.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorValue + '%'})`) as any;
+          }
+          
+          const results = await query.groupBy(arbitrationCases.disposition).execute();
+          
+          // Skip if no results for this name (e.g., filtered out by arbitrator)
+          if (results.length === 0) continue;
+          
+          // Track the number of cases by this respondent name
+          const nameTotal = results.reduce((sum, r) => sum + Number(r.count || 0), 0);
+          nameStats.set(name, nameTotal);
+          
+          // Aggregate results
+          for (const result of results) {
+            const disposition = result.disposition || "Unknown";
+            const count = Number(result.count || 0);
+            totalCases += count;
+            
+            // Add to our aggregate map
+            const currentCount = allOutcomes.get(disposition) || 0;
+            allOutcomes.set(disposition, currentCount + count);
+          }
+        }
+        
+        if (allOutcomes.size === 0) {
           return {
             data: { outcomes: [] },
             message: `No cases found for respondent ${respondentName}${
@@ -883,16 +930,38 @@ async function executeQueryByType(
         }
         
         // Format the results
-        const outcomes = results.map((r) => ({
-          disposition: r.disposition || "Unknown",
-          count: Number(r.count),
+        const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
+          disposition,
+          count,
         }));
         
         // Create a summary message
-        const totalCases = outcomes.reduce((sum, o) => sum + o.count, 0);
-        let message = `${respondentName} has been involved in ${totalCases} cases${
-          arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
-        }. The outcomes are:\n`;
+        let message = '';
+        
+        // If we have multiple matching names, list them
+        if (matchingNames.length > 1) {
+          message = `Found ${matchingNames.length} respondents matching "${respondentName}" with a total of ${totalCases} cases:\n`;
+          
+          // Sort respondent names by case count (most frequent first)
+          const sortedNames = Array.from(nameStats.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => `- ${name}: ${count} cases`);
+          
+          // Only show the top 5 variations to keep the message concise
+          const topNames = sortedNames.slice(0, 5);
+          if (sortedNames.length > 5) {
+            topNames.push(`- ...and ${sortedNames.length - 5} more variations`);
+          }
+          
+          message += topNames.join('\n') + '\n\nCombined outcomes:\n';
+        } else {
+          message = `${respondentName} has been involved in ${totalCases} cases${
+            arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
+          }. The outcomes are:\n`;
+        }
+        
+        // Sort outcomes by count (highest first)
+        outcomes.sort((a, b) => b.count - a.count);
         
         outcomes.forEach((o) => {
           const percentage = ((o.count / totalCases) * 100).toFixed(1);
@@ -900,7 +969,12 @@ async function executeQueryByType(
         });
         
         return {
-          data: { outcomes },
+          data: { 
+            outcomes,
+            matchingNames: Array.from(nameStats.entries())
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, count]) => ({ name, count }))
+          },
           message,
         };
       }
