@@ -188,14 +188,33 @@ function cleanNameString(name: string): string {
 function extractRespondentName(query: string): string | null {
   // Common respondent name extraction patterns
   const patterns = [
-    /(?:against|involving|with respondent|company)\s+([A-Za-z\s\.]+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
-    /respondent\s+([A-Za-z\s\.]+?)(?:[,\.\?]|$)/i,
+    // Explicit patterns for "respondent" keyword
+    /(?:respondent|company)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
+    /respondent\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    
+    // Patterns for specific prepositions
+    /(?:against|involving|with|by|for)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
+    
+    // Pattern for company names with corp/inc/llc suffix
+    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))/i,
+    
+    // Patterns for outcomes phrasing
+    /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
   ];
   
   for (const pattern of patterns) {
     const match = query.match(pattern);
     if (match && match[1]) {
-      return match[1].trim();
+      const name = match[1].trim();
+      // Skip common words that might be falsely matched
+      if (name.toLowerCase() === "the" || 
+          name.toLowerCase() === "a" || 
+          name.toLowerCase() === "an" ||
+          name.length < 3) {
+        continue;
+      }
+      return name;
     }
   }
   
@@ -267,24 +286,22 @@ async function analyzeQuery(query: string): Promise<{
       !lowerQuery.includes("average") &&
       !lowerQuery.includes("award amount")
     ) {
-      // Extract arbitrator name from "cases handled by [name]"
-      // Use greedy capture to get the full name (first name + last name)
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      // First, check for respondent patterns - this is higher priority
+      respondentName = extractRespondentName(query);
       
-      const match = query.match(byPattern) || query.match(forPattern);
-      
-      if (match && match[1]) {
-        arbitratorName = cleanNameString(match[1].trim());
-        type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+      if (respondentName) {
+        // If we found a respondent name, this is a respondent outcome analysis
+        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
       } else {
-        // Check for respondent patterns
-        const respPattern = /(?:involving|with|against|for|by)\s+(?:respondent|company)\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
-        const companyMatch = query.match(respPattern);
+        // If no respondent found, look for arbitrator patterns
+        const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+        const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
         
-        if (companyMatch && companyMatch[1]) {
-          respondentName = companyMatch[1].trim();
-          type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+        const match = query.match(byPattern) || query.match(forPattern);
+        
+        if (match && match[1]) {
+          arbitratorName = cleanNameString(match[1].trim());
+          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
         } else {
           type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
         }
@@ -619,31 +636,46 @@ async function executeQueryByType(
         
         // Process each matching name
         for (const name of matchingNames) {
-          // Build query for this specific name
-          let query = db
+          // First query to get total case count for the arbitrator
+          const countQuery = db
+            .select({
+              countCases: sql`COUNT(*)`,
+            })
+            .from(arbitrationCases)
+            .where(sql`arbitrator_name = ${name}`);
+            
+          // Add disposition filter if provided (for total case count)
+          if (disposition) {
+            countQuery.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
+          }
+          
+          const countResult = await countQuery.execute();
+          const totalCasesForArbitrator = Number(countResult[0]?.countCases || 0);
+          
+          // Second query to get award statistics ONLY for cases with "award" in disposition
+          const awardQuery = db
             .select({
               avgAward: sql`AVG(NULLIF(award_amount, '')::numeric)`,
-              countCases: sql`COUNT(*)`,
               countWithAward: sql`COUNT(NULLIF(award_amount, ''))`,
               sumAward: sql`SUM(NULLIF(award_amount, '')::numeric)`,
             })
             .from(arbitrationCases)
-            .where(sql`arbitrator_name = ${name}`);
-          
-          // Only include cases where disposition contains "AWARD" for award calculations
-          query = query.where(sql`LOWER(disposition) LIKE '%award%'`) as any;
-          
+            .where(sql`arbitrator_name = ${name} AND LOWER(disposition) LIKE '%award%'`);
+            
           // Add additional disposition filter if provided
           if (disposition && !disposition.toLowerCase().includes('award')) {
-            query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
+            awardQuery.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
           }
           
-          const result = await query.execute();
+          const awardResult = await awardQuery.execute();
           
-          if (result.length && result[0].countCases > 0) {
-            totalCases += Number(result[0].countCases || 0);
-            totalWithAward += Number(result[0].countWithAward || 0);
-            totalAwardAmount += Number(result[0].sumAward || 0);
+          // Add the total case count from the first query
+          totalCases += totalCasesForArbitrator;
+          
+          // Add the award statistics from cases where disposition is "award"
+          if (awardResult.length && awardResult[0].countWithAward > 0) {
+            totalWithAward += Number(awardResult[0].countWithAward || 0);
+            totalAwardAmount += Number(awardResult[0].sumAward || 0);
           }
         }
         
