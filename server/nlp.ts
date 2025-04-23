@@ -506,7 +506,7 @@ async function analyzeQuery(query: string): Promise<{
       }
     }
     
-    // List the cases handled by X.
+    // List the cases handled by X or involving company Y
     else if (
       (lowerQuery.includes("list") || 
        lowerQuery.includes("show") || 
@@ -514,37 +514,51 @@ async function analyzeQuery(query: string): Promise<{
        lowerQuery.includes("which case") ||
        lowerQuery.includes("display"))
     ) {
-      type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
-      
-      // Extract name from "cases handled by [name]"
-      // Make the pattern less greedy to capture multiple words including titles (like Hon.)
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      
-      const match = query.match(byPattern) || query.match(ofPattern);
-      
-      if (match && match[1]) {
-        arbitratorName = cleanNameString(match[1].trim());
-      } else {
-        // Last resort: look for capitalized words after keywords
-        const words = query.split(/\s+/);
-        for (let i = 0; i < words.length; i++) {
-          if (words[i].toLowerCase() === "by" || words[i].toLowerCase() === "arbitrator") {
-            // Check for full name patterns after "by" or "arbitrator"
-            let fullName = "";
-            let j = i + 1;
-            
-            // Keep adding words as long as they start with a capital letter or are titles/prefixes
-            while (j < words.length && 
-                  (/^[A-Z]/.test(words[j]) || // Starts with capital letter
-                   /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[j]))) { // Is a title
-              fullName += (fullName ? " " : "") + words[j];
-              j++;
-            }
-            
-            if (fullName) {
-              arbitratorName = cleanNameString(fullName);
-              break;
+      // First check if this is about a respondent
+      if (lowerQuery.includes("involving") || 
+          lowerQuery.includes("with") || 
+          lowerQuery.includes("against") || 
+          lowerQuery.includes("versus") ||
+          lowerQuery.includes(" vs ")) {
+        
+        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+        respondentName = extractRespondentName(query);
+        arbitratorName = null;
+      }
+      // Otherwise assume it's about an arbitrator
+      else {
+        type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
+        
+        // Extract name from "cases handled by [name]"
+        // Make the pattern less greedy to capture multiple words including titles (like Hon.)
+        const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+        const ofPattern = /(?:cases|arbitrations).+?\s+of\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+        
+        const match = query.match(byPattern) || query.match(ofPattern);
+        
+        if (match && match[1]) {
+          arbitratorName = cleanNameString(match[1].trim());
+        } else {
+          // Last resort: look for capitalized words after keywords
+          const words = query.split(/\s+/);
+          for (let i = 0; i < words.length; i++) {
+            if (words[i].toLowerCase() === "by" || words[i].toLowerCase() === "arbitrator") {
+              // Check for full name patterns after "by" or "arbitrator"
+              let fullName = "";
+              let j = i + 1;
+              
+              // Keep adding words as long as they start with a capital letter or are titles/prefixes
+              while (j < words.length && 
+                    (/^[A-Z]/.test(words[j]) || // Starts with capital letter
+                     /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[j]))) { // Is a title
+                fullName += (fullName ? " " : "") + words[j];
+                j++;
+              }
+              
+              if (fullName) {
+                arbitratorName = cleanNameString(fullName);
+                break;
+              }
             }
           }
         }
