@@ -23,7 +23,7 @@ import { z } from "zod";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB limit (to accommodate 20MB+ files)
+    fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = path.extname(file.originalname).toLowerCase();
