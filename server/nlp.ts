@@ -223,14 +223,18 @@ function extractRespondentName(query: string): string | null {
     // Company name patterns with legal suffixes
     /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company|Co\.|Group|Holdings|Technologies|Services)))/i,
     
+    // Financial institution patterns (banks, etc.)
+    /([A-Za-z]+\s+(?:of\s+)?[A-Za-z]+\s+(?:Bank|Financial|Credit\s+Union|Savings|Capital|Mortgage|Insurance))/i,
+    /(Bank\s+of\s+[A-Za-z]+)/i,
+    
     // "against [company]" patterns
     /(?:against|versus|vs\.?|v\.)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
     
     // Claims/cases against [company]
     /(?:claims|cases|complaints|filings)\s+against\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:show|indicate|suggest|totaled|numbered))/i,
     
-    // "outcomes for [company]"
-    /outcomes\s+(?:for|of|against)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    // "outcomes for [company]" - make sure it's not capturing a case with "cases handled by"
+    /outcomes\s+(?:for|of|against)\s+(?!cases\s+(?:handled|overseen|arbitrated|managed|decided)\s+by)([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
     
     // "involving [company]" patterns
     /involving\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|show|indicate))/i
@@ -397,30 +401,73 @@ async function analyzeQuery(query: string): Promise<{
       }
     }
     
-    // What are the outcomes for cases handled by X?
+    // Outcomes/Results analysis section
     else if (
       (lowerQuery.includes("outcome") || lowerQuery.includes("result") || lowerQuery.includes("ruling")) &&
       !lowerQuery.includes("average") &&
       !lowerQuery.includes("award amount")
     ) {
-      // First, check for respondent patterns - this is higher priority
-      respondentName = extractRespondentName(query);
+      // First check for contextual clues that strongly indicate the type of query
       
-      if (respondentName) {
-        // If we found a respondent name, this is a respondent outcome analysis
-        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
-      } else {
-        // If no respondent found, look for arbitrator patterns
-        const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-        const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      // ARBITRATOR CONTEXT CLUES - if these patterns exist, this is definitely about an arbitrator
+      const arbitratorContextPatterns = [
+        /(?:cases|arbitrations)\s+(?:handled|decided|overseen|arbitrated|managed)\s+by\b/i,
+        /outcomes\s+(?:for|of)\s+cases\s+(?:handled|decided|overseen|arbitrated|managed)\s+by\b/i,
+        /(?:arbitrator|judge|justice|hon\.)\s+[A-Za-z\s\.\-']+?\b/i
+      ];
+      
+      const hasArbitratorContext = arbitratorContextPatterns.some(pattern => pattern.test(query));
+      
+      // RESPONDENT CONTEXT CLUES - if these patterns exist, this is definitely about a respondent
+      const respondentContextPatterns = [
+        /\b(?:against|versus|vs\.?|v\.)\s+[A-Za-z0-9\s\.\-&']+?\b/i,
+        /\bas\s+(?:the\s+)?respondent\b/i,
+        /\brespondent\s+(?:named|called|is|was)?\s+[A-Za-z0-9\s\.\-&']+?\b/i,
+        /\bclaims\s+against\s+[A-Za-z0-9\s\.\-&']+?\b/i,
+        /\b[A-Za-z0-9\s\.\-&']+?\s+(?:Inc|LLC|Corp|Ltd|Corporation|Company)\b/i
+      ];
+      
+      const hasRespondentContext = respondentContextPatterns.some(pattern => pattern.test(query));
+      
+      // CASE 1: Clear arbitrator context
+      if (hasArbitratorContext && !hasRespondentContext) {
+        arbitratorName = extractArbitratorName(query);
+        if (arbitratorName) {
+          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+        }
+      }
+      // CASE 2: Clear respondent context
+      else if (hasRespondentContext && !hasArbitratorContext) {
+        respondentName = extractRespondentName(query);
+        if (respondentName) {
+          type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+        }
+      }
+      // CASE 3: Ambiguous or no clear context, try both extractors
+      else {
+        // Check for "cases handled by" pattern first - strong indicator of arbitrator
+        const casesByPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+        const matchCasesBy = query.match(casesByPattern);
         
-        const match = query.match(byPattern) || query.match(forPattern);
-        
-        if (match && match[1]) {
-          arbitratorName = cleanNameString(match[1].trim());
+        if (matchCasesBy && matchCasesBy[1]) {
+          arbitratorName = standardizeName(matchCasesBy[1].trim());
           type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
         } else {
-          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+          // Try respondent extraction first
+          respondentName = extractRespondentName(query);
+          
+          if (respondentName) {
+            type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+          } else {
+            // If no respondent, try arbitrator
+            arbitratorName = extractArbitratorName(query);
+            if (arbitratorName) {
+              type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+            } else {
+              // If still no match, default to unknown
+              type = QUERY_TYPES.UNKNOWN;
+            }
+          }
         }
       }
     }
