@@ -57,9 +57,9 @@ function parseNameComponents(name: string): {
  * @returns True if names match according to rules, false otherwise
  */
 function doNamesMatch(name1: string, name2: string): boolean {
-  // First standardize both names to convert any full middle names to initials
-  const standardizedName1 = standardizeMiddleName(name1);
-  const standardizedName2 = standardizeMiddleName(name2);
+  // First standardize both names to have consistent formatting
+  const standardizedName1 = standardizeName(name1);
+  const standardizedName2 = standardizeName(name2);
   
   // Now parse the standardized names into components for comparison
   const name1Components = parseNameComponents(standardizedName1);
@@ -176,57 +176,79 @@ function extractName(query: string): string | null {
 }
 
 /**
- * Standardizes middle names by converting them to initials
- * @param name The full name to standardize
- * @returns The name with middle names converted to initials
+ * Standardizes a person's name using consistent rules:
+ * 1. Removes title prefixes (Hon., Dr., Mr., etc.)
+ * 2. Removes suffixes (Esq., Jr., III, etc.)
+ * 3. Converts full middle names to initials (John Edward Smith → John E. Smith)
+ * 4. Properly formats initials with periods
+ * 5. Preserves capitalization pattern
+ * 
+ * @param name The name to standardize
+ * @returns The standardized name
  */
-function standardizeMiddleName(name: string): string {
-  const nameParts = name.trim().split(/\s+/);
+function standardizeName(name: string): string {
+  if (!name) return name;
   
-  // If we don't have at least 3 parts (first, middle, last), return the original
+  // Step 1: Trim and remove excess whitespace
+  name = name.trim().replace(/\s+/g, ' ');
+  
+  // Step 2: Remove title prefixes (using a more comprehensive list)
+  name = name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Doctor|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Miss|Mx\.|Sir|Madam|Dame)\s+/i, '');
+  
+  // Step 3: Remove suffixes
+  name = name.replace(/\s+(Esq\.|Esquire|Sr\.|Senior|Jr\.|Junior|I|II|III|IV|V|MD|PhD|JD|DDS|CPA|MBA)\.?$/i, '');
+  
+  // Step 4: Split the name into parts
+  const nameParts = name.split(/\s+/);
+  
+  // If there are fewer than 3 parts, no middle name to process
   if (nameParts.length < 3) {
     return name;
   }
   
-  // Assume the first part is the first name and the last part is the last name
+  // Step 5: Extract first name and last name
   const firstName = nameParts[0];
   const lastName = nameParts[nameParts.length - 1];
   
-  // All parts between first and last are middle names
+  // Step 6: Process middle parts
   const middleParts = nameParts.slice(1, nameParts.length - 1);
   
-  // Convert each middle name to an initial followed by a period
+  // Step 7: Convert middle names to initials
   const middleInitials = middleParts.map(part => {
-    // If it's already an initial (single character followed by period), keep it
-    if (/^[A-Z]\.$/i.test(part)) {
-      return part.toUpperCase();
+    // Skip short connecting words
+    if (/^(de|la|van|von|der|del|of|the)$/i.test(part)) {
+      return part.toLowerCase();
     }
-    // If it's a single character without period, add the period
-    else if (part.length === 1) {
-      return part.toUpperCase() + '.';
-    }
-    // Otherwise convert to initial
-    else {
+    
+    // If already an initial with period, ensure proper formatting
+    if (/^[A-Z]\.?$/i.test(part)) {
       return part.charAt(0).toUpperCase() + '.';
     }
+    
+    // Convert full name to initial
+    return part.charAt(0).toUpperCase() + '.';
   });
   
-  // Rejoin all parts
+  // Step 8: Rejoin all parts
   return [firstName, ...middleInitials, lastName].join(' ');
 }
 
 /**
- * Cleans a name string by removing titles and suffixes, and standardizing middle names
+ * Legacy function maintained for backward compatibility
  * @param name The name to clean
- * @returns The cleaned and standardized name
+ * @returns The standardized name
  */
 function cleanNameString(name: string): string {
-  // Remove title prefixes and suffixes first
-  let cleanedName = name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)\s+/i, '')
-            .replace(/\s+(Esq\.|Sr\.|Jr\.|I|II|III|IV|V|MD|PhD|JD|DDS)\.?$/i, '');
-  
-  // Then standardize middle names to initials
-  return standardizeMiddleName(cleanedName);
+  return standardizeName(name);
+}
+
+/**
+ * Legacy function maintained for backward compatibility
+ * @param name The name to standardize
+ * @returns The name with middle names converted to initials
+ */
+function standardizeMiddleName(name: string): string {
+  return standardizeName(name);
 }
 
 /**
