@@ -299,8 +299,8 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
       
       // Extract name from "given by [name]" or "awarded by [name]"
-      const byPattern = /(?:given|awarded|granted|authorized)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      const ofPattern = /(?:award|amount).+?\s+of\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const byPattern = /(?:given|awarded|granted|authorized)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const ofPattern = /(?:award|amount).+?\s+of\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(ofPattern);
       
@@ -788,15 +788,15 @@ async function executeQueryByType(
         }
         
         limitedCases.forEach((c, i) => {
-          message += `${i + 1}.    Case ID: ${c.caseId}\n`;
-          message += `      Case Type: ${c.caseType || "Unknown"}\n`;
-          message += `      Arbitrator: ${c.arbitratorName}\n`;
-          message += `      Respondent: ${c.respondentName || "Unknown"}\n`;
-          message += `      Disposition: ${c.disposition || "Unknown"}\n`;
+          message += `${i + 1}. Case ID: ${c.caseId}\n`;
+          message += `   Case Type: ${c.caseType || "Unknown"}\n`;
+          message += `   Arbitrator: ${c.arbitratorName}\n`;
+          message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
+          message += `   Disposition: ${c.disposition || "Unknown"}\n`;
           
           // Show award amount for awarded cases
           if (c.disposition === "Awarded" && c.awardAmount) {
-            message += `      Award Amount: $${c.awardAmount}\n`;
+            message += `   Award Amount: $${c.awardAmount}\n`;
           }
           
           message += "\n";
