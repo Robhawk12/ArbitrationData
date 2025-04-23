@@ -102,7 +102,7 @@ function extractName(query: string): string | null {
   // Look for specific patterns first (these are most likely to be accurate)
   const specificPatterns = [
     // "by John Smith"
-    /(?:by|for|from|about|handled by)\s+([A-Za-z\s\.\-']+?)(?:\s+(?:has|have|handled|cases|with|against|and|or|in|the|is|was|did)|$)/i,
+    /(?:by|for|from|about|handled by)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s+(?:has|have|handled|cases|with|against|and|or|in|the|is|was|did)|$)/i,
     // "John Smith's cases"
     /([A-Za-z\s\.\-']+?)(?:'s cases)/i,
     // "John Smith has handled"
@@ -110,9 +110,9 @@ function extractName(query: string): string | null {
     // "John Smith ruled"
     /([A-Za-z\s\.\-']+?)(?:\s+ruled)/i,
     // "arbitrator John Smith"
-    /arbitrator\s+([A-Za-z\s\.\-']+)/i,
+    /arbitrator\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i,
     // "cases by John Smith"
-    /cases\s+(?:by|of|from|with)\s+([A-Za-z\s\.\-']+)/i,
+    /cases\s+(?:by|of|from|with)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i,
   ];
   
   for (const pattern of specificPatterns) {
@@ -128,11 +128,11 @@ function extractName(query: string): string | null {
   }
   
   // Direct name recognition for simple queries
-  // Match "How many cases has Smith handled?" 
+  // Match "How many cases has Smith handled?" or "How many cases has Bradley Areheart handled?"
   const simplePatterns = [
-    /has\s+([A-Za-z\.\-']+)\s+handled/i,
-    /did\s+([A-Za-z\.\-']+)\s+handle/i,
-    /for\s+([A-Za-z\.\-']+)/i
+    /has\s+([A-Za-z\s\.\-']+?)\s+handled/i,
+    /did\s+([A-Za-z\s\.\-']+?)\s+handle/i,
+    /for\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i
   ];
   
   for (const pattern of simplePatterns) {
@@ -180,8 +180,8 @@ function cleanNameString(name: string): string {
 function extractRespondentName(query: string): string | null {
   // Common respondent name extraction patterns
   const patterns = [
-    /(?:against|involving|with respondent|company)\s+([A-Za-z\s\.]+?)(?:\s+(?:as|and|or|in|the|by|with)|$)/i,
-    /respondent\s+([A-Za-z\s\.]+)/i,
+    /(?:against|involving|with respondent|company)\s+([A-Za-z\s\.]+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
+    /respondent\s+([A-Za-z\s\.]+?)(?:[,\.\?]|$)/i,
   ];
   
   for (const pattern of patterns) {
@@ -219,9 +219,9 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
       
       // Extract name from "How many cases has [name] handled?"
-      const hasPattern = /has\s+([A-Za-z\s\.\-']+)\s+(?:handled|overseen|arbitrated|managed)/i;
-      const didPattern = /did\s+([A-Za-z\s\.\-']+)\s+(?:handle|oversee|arbitrate|manage)/i;
-      const byPattern = /(?:by|from|with)\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const hasPattern = /has\s+([A-Za-z\s\.\-']+?)\s+(?:handled|overseen|arbitrated|managed)/i;
+      const didPattern = /did\s+([A-Za-z\s\.\-']+?)\s+(?:handle|oversee|arbitrate|manage)/i;
+      const byPattern = /(?:by|from|with)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i;
       
       let match = query.match(hasPattern) || query.match(didPattern) || query.match(byPattern);
       
@@ -254,8 +254,9 @@ async function analyzeQuery(query: string): Promise<{
       !lowerQuery.includes("award amount")
     ) {
       // Extract arbitrator name from "cases handled by [name]"
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
-      const forPattern = /outcomes\s+for\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      // Use greedy capture to get the full name (first name + last name)
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const forPattern = /outcomes\s+for\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(forPattern);
       
@@ -284,8 +285,8 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
       
       // Extract name from "given by [name]" or "awarded by [name]"
-      const byPattern = /(?:given|awarded|granted|authorized)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
-      const ofPattern = /(?:award|amount).+?\s+of\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const byPattern = /(?:given|awarded|granted|authorized)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const ofPattern = /(?:award|amount).+?\s+of\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(ofPattern);
       
@@ -314,8 +315,8 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
       
       // Extract name from "cases handled by [name]"
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
-      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+([A-Za-z\s\.\-']+)(?:\s|$)/i;
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(ofPattern);
       
