@@ -56,6 +56,15 @@ function parseNameComponents(name: string): {
  * @param name2 Second name to compare
  * @returns True if names match according to rules, false otherwise
  */
+/**
+ * Determines if two names match according to our standardized rules.
+ * Always applies name standardization before comparison to ensure consistent matching
+ * across the application.
+ * 
+ * @param name1 First name to compare
+ * @param name2 Second name to compare
+ * @returns True if names match according to rules, false otherwise
+ */
 function doNamesMatch(name1: string, name2: string): boolean {
   // First standardize both names to have consistent formatting
   const standardizedName1 = standardizeName(name1);
