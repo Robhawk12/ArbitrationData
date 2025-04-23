@@ -101,64 +101,75 @@ const QUERY_TYPES = {
 };
 
 /**
- * Extract name from a query using a variety of patterns and clean it of titles/suffixes
+ * Extract arbitrator name from a query using patterns specific to arbitrators
  * @param query The query text
- * @returns The extracted name or null if not found
+ * @returns The extracted and standardized arbitrator name or null if not found
  */
-function extractName(query: string): string | null {
-  // Look for specific patterns first (these are most likely to be accurate)
-  const specificPatterns = [
-    // "by John Smith"
-    /(?:by|for|from|about|handled by)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s+(?:has|have|handled|cases|with|against|and|or|in|the|is|was|did)|$)/i,
+function extractArbitratorName(query: string): string | null {
+  // Arbitrator-specific patterns first
+  const arbitratorPatterns = [
+    // "Arbitrator John Smith" or "Judge John Smith"
+    /(?:arbitrator|judge|justice|honorable|hon\.)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s+(?:has|have|handled|cases|with|against|and|or|in|the|is|was|did)|$)/i,
+    
+    // "John Smith has handled" or "John Smith handled"
+    /([A-Za-z\s\.\-']+?)(?:\s+(?:has|have)?\s*handled)/i,
+    
+    // "John Smith ruled" or "John Smith decided"
+    /([A-Za-z\s\.\-']+?)(?:\s+(?:ruled|decided|determined|found))/i,
+    
     // "John Smith's cases"
     /([A-Za-z\s\.\-']+?)(?:'s cases)/i,
-    // "John Smith has handled"
-    /([A-Za-z\s\.\-']+?)(?:\s+has handled)/i,
-    // "John Smith ruled"
-    /([A-Za-z\s\.\-']+?)(?:\s+ruled)/i,
-    // "arbitrator John Smith"
-    /arbitrator\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i,
-    // "cases by John Smith"
-    /cases\s+(?:by|of|from|with)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i,
+    
+    // "cases by John Smith" or "cases handled by John Smith"
+    /cases\s+(?:(?:handled|decided|overseen)\s+)?(?:by|of|from|with)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i,
+    
+    // "handled by John Smith"
+    /(?:handled|overseen|arbitrated|managed|decided|ruled)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i,
+    
+    // "by John Smith" (when context suggests arbitrator)
+    /(?:by|with|from)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s+(?:has|have|handled|cases|decided|ruled|found|awarded)|$)/i
   ];
   
-  for (const pattern of specificPatterns) {
+  for (const pattern of arbitratorPatterns) {
     const match = query.match(pattern);
     if (match && match[1]) {
       const name = match[1].trim();
       // If name length is reasonable (to avoid matching entire sentences)
       if (name.length > 1 && name.length < 40) {
-        // Clean the name by removing titles and suffixes
-        return cleanNameString(name);
+        // Standardize the name for consistent matching
+        return standardizeName(name);
       }
     }
   }
   
-  // Direct name recognition for simple queries
-  // Match "How many cases has Smith handled?" or "How many cases has Bradley Areheart handled?"
-  const simplePatterns = [
-    /has\s+([A-Za-z\s\.\-']+?)\s+handled/i,
-    /did\s+([A-Za-z\s\.\-']+?)\s+handle/i,
-    /for\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i
+  // Direct name recognition specific to arbitrator contexts
+  const arbitratorContextPatterns = [
+    // "How many cases has Smith handled?"
+    /has\s+([A-Za-z\s\.\-']+?)\s+(?:handled|overseen|arbitrated|decided)/i,
+    
+    // "How many cases did Smith handle?"
+    /did\s+([A-Za-z\s\.\-']+?)\s+(?:handle|oversee|arbitrate|decide)/i,
+    
+    // "What awards did Smith give?"
+    /did\s+([A-Za-z\s\.\-']+?)\s+(?:give|award|issue)/i
   ];
   
-  for (const pattern of simplePatterns) {
+  for (const pattern of arbitratorContextPatterns) {
     const match = query.match(pattern);
     if (match && match[1]) {
-      return cleanNameString(match[1].trim());
+      return standardizeName(match[1].trim());
     }
   }
   
-  // Last resort: look for capitalized words or sequences that might be names
+  // Last resort: look for capitalized person names after keywords related to arbitrators
   const words = query.split(/\s+/);
   for (let i = 0; i < words.length; i++) {
-    // Check if word starts with capital letter or is a title (potential name component)
-    if (/^[A-Z][a-z\.\-']*$/.test(words[i]) || 
-        /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[i])) {
-      
-      // Try to capture the full name with potential titles
+    // Check for keywords that typically precede arbitrator names
+    const arbitratorIndicators = ["arbitrator", "judge", "justice", "by", "with", "from"];
+    if (arbitratorIndicators.includes(words[i].toLowerCase())) {
+      // Try to capture the full name with potential titles after these keywords
       let fullName = "";
-      let j = i;
+      let j = i + 1;
       
       // Keep adding words as long as they start with a capital letter or are titles/prefixes
       while (j < words.length && 
@@ -168,9 +179,82 @@ function extractName(query: string): string | null {
         j++;
       }
       
-      if (fullName) {
-        return cleanNameString(fullName);
+      if (fullName && fullName.length > 1 && fullName.length < 40) {
+        return standardizeName(fullName);
       }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract respondent name from a query using patterns specific to respondents (companies, etc.)
+ * @param query The query text
+ * @returns The extracted and standardized respondent name or null if not found
+ */
+function extractRespondentName(query: string): string | null {
+  // Check for common excluded patterns first - don't extract respondent from these
+  const excludedPatterns = [
+    /cases\s+handled\s+by\s+[A-Za-z0-9\s\.\-&']+/i,  // Cases handled by [name]
+    /outcomes\s+for\s+cases\s+handled\s+by\s+[A-Za-z0-9\s\.\-&']+/i, // Outcomes for cases handled by [name]
+    /results\s+for\s+cases\s+handled\s+by\s+[A-Za-z0-9\s\.\-&']+/i, // Results for cases handled by [name]
+    /cases\s+arbitrated\s+by\s+[A-Za-z0-9\s\.\-&']+/i, // Cases arbitrated by [name]
+    /cases\s+decided\s+by\s+[A-Za-z0-9\s\.\-&']+/i, // Cases decided by [name]
+    /case\s+outcomes\s+from\s+[A-Za-z0-9\s\.\-&']+/i, // Case outcomes from [name]
+  ];
+  
+  for (const pattern of excludedPatterns) {
+    if (pattern.test(query)) {
+      // This is likely an arbitrator query, not a respondent query
+      return null;
+    }
+  }
+  
+  // Respondent-specific extraction patterns
+  const respondentPatterns = [
+    // Explicit respondent patterns with "respondent" or "company" keyword
+    /(?:respondent|company)\s+(?:named|called)?\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
+    /respondent\s+(?:is|was)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    
+    // "as respondent" patterns
+    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as\s+(?:the\s+)?respondent)/i,
+    
+    // Company name patterns with legal suffixes
+    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company|Co\.|Group|Holdings|Technologies|Services)))/i,
+    
+    // "against [company]" patterns
+    /(?:against|versus|vs\.?|v\.)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
+    
+    // Claims/cases against [company]
+    /(?:claims|cases|complaints|filings)\s+against\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:show|indicate|suggest|totaled|numbered))/i,
+    
+    // "outcomes for [company]"
+    /outcomes\s+(?:for|of|against)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    
+    // "involving [company]" patterns
+    /involving\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|show|indicate))/i
+  ];
+  
+  for (const pattern of respondentPatterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      // Skip common words that might be falsely matched
+      if (name.toLowerCase() === "the" || 
+          name.toLowerCase() === "a" || 
+          name.toLowerCase() === "an" ||
+          name.toLowerCase() === "cases" ||
+          name.toLowerCase() === "arbitrator" ||
+          name.toLowerCase() === "judge" ||
+          name.toLowerCase() === "justice" ||
+          name.toLowerCase().includes("handled by") ||
+          name.length < 3) {
+        continue;
+      }
+      
+      // For respondent names, apply standardization to ensure consistent matching
+      return standardizeName(name);
     }
   }
   
@@ -252,49 +336,6 @@ function cleanNameString(name: string): string {
  */
 function standardizeMiddleName(name: string): string {
   return standardizeName(name);
-}
-
-/**
- * Extract respondent name from a query and standardize it
- * @param query The query text
- * @returns The extracted and standardized respondent name or null if not found
- */
-function extractRespondentName(query: string): string | null {
-  // Common respondent name extraction patterns
-  const patterns = [
-    // Explicit patterns for "respondent" keyword
-    /(?:respondent|company)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
-    /respondent\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    
-    // Patterns for specific prepositions
-    /(?:against|involving|with|by|for)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
-    
-    // Pattern for company names with corp/inc/llc suffix
-    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))/i,
-    
-    // Patterns for outcomes phrasing
-    /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = query.match(pattern);
-    if (match && match[1]) {
-      const name = match[1].trim();
-      // Skip common words that might be falsely matched
-      if (name.toLowerCase() === "the" || 
-          name.toLowerCase() === "a" || 
-          name.toLowerCase() === "an" ||
-          name.length < 3) {
-        continue;
-      }
-      
-      // For respondent names, apply standardization to ensure consistent matching
-      return standardizeName(name);
-    }
-  }
-  
-  return null;
 }
 
 /**
@@ -456,14 +497,14 @@ async function analyzeQuery(query: string): Promise<{
       }
     }
     
-    // If we didn't extract a name but the query type requires one, try the generic name extractors
+    // If we didn't extract a name but the query type requires one, try the specialized arbitrator extractor
     if (!arbitratorName && (
       type === QUERY_TYPES.ARBITRATOR_CASE_COUNT || 
       type === QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS || 
       type === QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD || 
       type === QUERY_TYPES.ARBITRATOR_CASE_LISTING
     )) {
-      arbitratorName = extractName(query);
+      arbitratorName = extractArbitratorName(query);
     }
     
     if (!respondentName && type === QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS) {
