@@ -67,7 +67,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Arbitration cases methods
-  async getCases(page: number, limit: number, filter?: string): Promise<ArbitrationCase[]> {
+  async getCases(page: number, limit: number, filter?: string, sortField?: string, sortOrder?: 'asc' | 'desc'): Promise<ArbitrationCase[]> {
     const offset = (page - 1) * limit;
     
     // Create a query builder for basic select
@@ -158,8 +158,40 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Execute the query with limit, offset and order
-    return await queryBuilder.limit(limit).offset(offset).orderBy(desc(arbitrationCases.processingDate));
+    // Apply sorting if sortField is provided
+    if (sortField) {
+      // Map frontend sortField names to database columns
+      const columnMap: Record<string, any> = {
+        'caseId': arbitrationCases.caseId,
+        'arbitratorName': arbitrationCases.arbitratorName,
+        'respondentName': arbitrationCases.respondentName,
+        'consumerAttorney': arbitrationCases.consumerAttorney,
+        'disposition': arbitrationCases.disposition,
+        'claimAmount': arbitrationCases.claimAmount,
+        'awardAmount': arbitrationCases.awardAmount,
+        'filingDate': arbitrationCases.filingDate,
+        'caseType': arbitrationCases.caseType,
+        'forum': arbitrationCases.forum
+      };
+      
+      const column = columnMap[sortField];
+      if (column) {
+        if (sortOrder === 'desc') {
+          queryBuilder = queryBuilder.orderBy(desc(column));
+        } else {
+          queryBuilder = queryBuilder.orderBy(column);
+        }
+      } else {
+        // Default sorting if the column doesn't exist
+        queryBuilder = queryBuilder.orderBy(desc(arbitrationCases.processingDate));
+      }
+    } else {
+      // Default sorting if no sort field provided
+      queryBuilder = queryBuilder.orderBy(desc(arbitrationCases.processingDate));
+    }
+    
+    // Execute the query with limit and offset
+    return await queryBuilder.limit(limit).offset(offset);
   }
 
   async getCaseById(caseId: string): Promise<ArbitrationCase | undefined> {
