@@ -142,19 +142,27 @@ function extractName(query: string): string | null {
     }
   }
   
-  // Last resort: look for capitalized words or pairs of words that might be names
+  // Last resort: look for capitalized words or sequences that might be names
   const words = query.split(/\s+/);
   for (let i = 0; i < words.length; i++) {
-    // Check if word starts with capital letter (potential name)
-    if (/^[A-Z][a-z\.\-']*$/.test(words[i])) {
-      // If it's a standalone name
-      if (words[i].length > 2) { // Avoid short words like "A", "I", etc.
-        return cleanNameString(words[i]);
+    // Check if word starts with capital letter or is a title (potential name component)
+    if (/^[A-Z][a-z\.\-']*$/.test(words[i]) || 
+        /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[i])) {
+      
+      // Try to capture the full name with potential titles
+      let fullName = "";
+      let j = i;
+      
+      // Keep adding words as long as they start with a capital letter or are titles/prefixes
+      while (j < words.length && 
+            (/^[A-Z]/.test(words[j]) || // Starts with capital letter
+             /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[j]))) { // Is a title
+        fullName += (fullName ? " " : "") + words[j];
+        j++;
       }
       
-      // Check for first name + last name pattern
-      if (i < words.length - 1 && /^[A-Z][a-z\.\-']*$/.test(words[i+1])) {
-        return cleanNameString(`${words[i]} ${words[i+1]}`);
+      if (fullName) {
+        return cleanNameString(fullName);
       }
     }
   }
@@ -219,9 +227,9 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
       
       // Extract name from "How many cases has [name] handled?"
-      const hasPattern = /has\s+([A-Za-z\s\.\-']+?)\s+(?:handled|overseen|arbitrated|managed)/i;
-      const didPattern = /did\s+([A-Za-z\s\.\-']+?)\s+(?:handle|oversee|arbitrate|manage)/i;
-      const byPattern = /(?:by|from|with)\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i;
+      const hasPattern = /has\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)\s+(?:handled|overseen|arbitrated|managed)/i;
+      const didPattern = /did\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)\s+(?:handle|oversee|arbitrate|manage)/i;
+      const byPattern = /(?:by|from|with)\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|\s|$)/i;
       
       let match = query.match(hasPattern) || query.match(didPattern) || query.match(byPattern);
       
@@ -232,14 +240,20 @@ async function analyzeQuery(query: string): Promise<{
         const words = query.split(/\s+/);
         for (let i = 0; i < words.length; i++) {
           if (words[i].toLowerCase() === "has" || words[i].toLowerCase() === "by") {
-            if (i + 1 < words.length && /^[A-Z]/.test(words[i+1])) {
-              arbitratorName = words[i+1];
-              if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
-                arbitratorName += " " + words[i+2];
-              }
-              if (arbitratorName) {
-                arbitratorName = cleanNameString(arbitratorName);
-              }
+            // Check for full name patterns after keywords
+            let fullName = "";
+            let j = i + 1;
+            
+            // Keep adding words as long as they start with a capital letter or are titles/prefixes
+            while (j < words.length && 
+                  (/^[A-Z]/.test(words[j]) || // Starts with capital letter
+                   /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[j]))) { // Is a title
+              fullName += (fullName ? " " : "") + words[j];
+              j++;
+            }
+            
+            if (fullName) {
+              arbitratorName = cleanNameString(fullName);
               break;
             }
           }
@@ -255,8 +269,8 @@ async function analyzeQuery(query: string): Promise<{
     ) {
       // Extract arbitrator name from "cases handled by [name]"
       // Use greedy capture to get the full name (first name + last name)
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      const forPattern = /outcomes\s+for\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(forPattern);
       
@@ -315,8 +329,9 @@ async function analyzeQuery(query: string): Promise<{
       type = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
       
       // Extract name from "cases handled by [name]"
-      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
-      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+([A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      // Make the pattern less greedy to capture multiple words including titles (like Hon.)
+      const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
+      const ofPattern = /(?:cases|arbitrations).+?\s+of\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
       
       const match = query.match(byPattern) || query.match(ofPattern);
       
@@ -327,12 +342,20 @@ async function analyzeQuery(query: string): Promise<{
         const words = query.split(/\s+/);
         for (let i = 0; i < words.length; i++) {
           if (words[i].toLowerCase() === "by" || words[i].toLowerCase() === "arbitrator") {
-            if (i + 1 < words.length && /^[A-Z]/.test(words[i+1])) {
-              arbitratorName = words[i+1];
-              if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
-                arbitratorName += " " + words[i+2];
-              }
-              arbitratorName = cleanNameString(arbitratorName);
+            // Check for full name patterns after "by" or "arbitrator"
+            let fullName = "";
+            let j = i + 1;
+            
+            // Keep adding words as long as they start with a capital letter or are titles/prefixes
+            while (j < words.length && 
+                  (/^[A-Z]/.test(words[j]) || // Starts with capital letter
+                   /^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)$/i.test(words[j]))) { // Is a title
+              fullName += (fullName ? " " : "") + words[j];
+              j++;
+            }
+            
+            if (fullName) {
+              arbitratorName = cleanNameString(fullName);
               break;
             }
           }
