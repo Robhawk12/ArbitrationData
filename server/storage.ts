@@ -22,7 +22,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   // Arbitration cases methods
-  getCases(page: number, limit: number, filter?: string): Promise<ArbitrationCase[]>;
+  getCases(page: number, limit: number, filter?: string, sortField?: string, sortOrder?: 'asc' | 'desc'): Promise<ArbitrationCase[]>;
   getCaseById(caseId: string): Promise<ArbitrationCase | undefined>;
   createCase(caseData: InsertArbitrationCase): Promise<ArbitrationCase>;
   updateCase(caseId: string, caseData: Partial<InsertArbitrationCase>): Promise<ArbitrationCase | undefined>;

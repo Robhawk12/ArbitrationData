@@ -43,8 +43,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 100;
       const filter = req.query.filter as string | undefined;
+      const sortField = req.query.sortField as string | undefined;
+      const sortOrder = req.query.sortOrder as 'asc' | 'desc' | undefined;
       
-      const cases = await storage.getCases(page, limit, filter);
+      const cases = await storage.getCases(page, limit, filter, sortField, sortOrder);
       const totalCount = await storage.getCaseCount(filter);
       
       res.json({
