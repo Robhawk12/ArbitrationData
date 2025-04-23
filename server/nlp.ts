@@ -14,8 +14,12 @@ function parseNameComponents(name: string): {
 } {
   if (!name) return { firstName: null, middleInitial: null, lastName: null };
   
+  // Remove common titles and suffixes
+  const cleanName = name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)\s+/i, '')
+                        .replace(/\s+(Esq\.|Sr\.|Jr\.|I|II|III|IV|V|MD|PhD|JD|DDS)\.?$/i, '');
+  
   // Remove any extra spaces and split the name
-  const nameParts = name.trim().split(/\s+/);
+  const nameParts = cleanName.trim().split(/\s+/);
   
   // If only one word, assume it's a last name
   if (nameParts.length === 1) {
@@ -90,7 +94,7 @@ const QUERY_TYPES = {
 };
 
 /**
- * Extract name from a query using a variety of patterns
+ * Extract name from a query using a variety of patterns and clean it of titles/suffixes
  * @param query The query text
  * @returns The extracted name or null if not found
  */
@@ -117,7 +121,8 @@ function extractName(query: string): string | null {
       const name = match[1].trim();
       // If name length is reasonable (to avoid matching entire sentences)
       if (name.length > 1 && name.length < 40) {
-        return name;
+        // Clean the name by removing titles and suffixes
+        return cleanNameString(name);
       }
     }
   }
@@ -133,7 +138,7 @@ function extractName(query: string): string | null {
   for (const pattern of simplePatterns) {
     const match = query.match(pattern);
     if (match && match[1]) {
-      return match[1].trim();
+      return cleanNameString(match[1].trim());
     }
   }
   
@@ -144,17 +149,27 @@ function extractName(query: string): string | null {
     if (/^[A-Z][a-z\.\-']*$/.test(words[i])) {
       // If it's a standalone name
       if (words[i].length > 2) { // Avoid short words like "A", "I", etc.
-        return words[i];
+        return cleanNameString(words[i]);
       }
       
       // Check for first name + last name pattern
       if (i < words.length - 1 && /^[A-Z][a-z\.\-']*$/.test(words[i+1])) {
-        return `${words[i]} ${words[i+1]}`;
+        return cleanNameString(`${words[i]} ${words[i+1]}`);
       }
     }
   }
   
   return null;
+}
+
+/**
+ * Cleans a name string by removing titles and suffixes
+ * @param name The name to clean
+ * @returns The cleaned name
+ */
+function cleanNameString(name: string): string {
+  return name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)\s+/i, '')
+            .replace(/\s+(Esq\.|Sr\.|Jr\.|I|II|III|IV|V|MD|PhD|JD|DDS)\.?$/i, '');
 }
 
 /**
@@ -211,7 +226,7 @@ async function analyzeQuery(query: string): Promise<{
       let match = query.match(hasPattern) || query.match(didPattern) || query.match(byPattern);
       
       if (match && match[1]) {
-        arbitratorName = match[1].trim();
+        arbitratorName = cleanNameString(match[1].trim());
       } else {
         // Last resort: look for capitalized words after common phrases
         const words = query.split(/\s+/);
@@ -221,6 +236,9 @@ async function analyzeQuery(query: string): Promise<{
               arbitratorName = words[i+1];
               if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
                 arbitratorName += " " + words[i+2];
+              }
+              if (arbitratorName) {
+                arbitratorName = cleanNameString(arbitratorName);
               }
               break;
             }
@@ -242,7 +260,7 @@ async function analyzeQuery(query: string): Promise<{
       const match = query.match(byPattern) || query.match(forPattern);
       
       if (match && match[1]) {
-        arbitratorName = match[1].trim();
+        arbitratorName = cleanNameString(match[1].trim());
         type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
       } else {
         // Check for respondent patterns
@@ -272,7 +290,7 @@ async function analyzeQuery(query: string): Promise<{
       const match = query.match(byPattern) || query.match(ofPattern);
       
       if (match && match[1]) {
-        arbitratorName = match[1].trim();
+        arbitratorName = cleanNameString(match[1].trim());
       }
       
       // Check for disposition in queries like "What is the average award for consumers by X?"
@@ -302,7 +320,7 @@ async function analyzeQuery(query: string): Promise<{
       const match = query.match(byPattern) || query.match(ofPattern);
       
       if (match && match[1]) {
-        arbitratorName = match[1].trim();
+        arbitratorName = cleanNameString(match[1].trim());
       } else {
         // Last resort: look for capitalized words after keywords
         const words = query.split(/\s+/);
@@ -313,6 +331,7 @@ async function analyzeQuery(query: string): Promise<{
               if (i + 2 < words.length && /^[A-Z]/.test(words[i+2])) {
                 arbitratorName += " " + words[i+2];
               }
+              arbitratorName = cleanNameString(arbitratorName);
               break;
             }
           }
