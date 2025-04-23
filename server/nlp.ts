@@ -718,9 +718,9 @@ async function executeQueryByType(
               caseId: arbitrationCases.caseId,
               arbitratorName: arbitrationCases.arbitratorName,
               respondentName: arbitrationCases.respondentName,
-              filingDate: arbitrationCases.filingDate,
               disposition: arbitrationCases.disposition,
               caseType: arbitrationCases.caseType,
+              awardAmount: arbitrationCases.awardAmount,
             })
             .from(arbitrationCases)
             .where(sql`arbitrator_name = ${name}`)
@@ -730,12 +730,12 @@ async function executeQueryByType(
         }
         
         // Enforce a limit to prevent extremely large results
-        // First sort by filing date if available (most recent first)
+        // Sort by case ID (descending) as a fallback for not having filing date
         allCases.sort((a, b) => {
-          if (!a.filingDate && !b.filingDate) return 0;
-          if (!a.filingDate) return 1;
-          if (!b.filingDate) return -1;
-          return new Date(b.filingDate).getTime() - new Date(a.filingDate).getTime();
+          if (!a.caseId && !b.caseId) return 0;
+          if (!a.caseId) return 1;
+          if (!b.caseId) return -1;
+          return b.caseId.localeCompare(a.caseId);
         });
         
         const limitedCases = allCases.slice(0, 50);
@@ -768,8 +768,13 @@ async function executeQueryByType(
           message += `${i + 1}. Case ID: ${c.caseId}\n`;
           message += `   Arbitrator: ${c.arbitratorName}\n`;
           message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
-          message += `   Filing Date: ${c.filingDate || "Unknown"}\n`;
           message += `   Disposition: ${c.disposition || "Unknown"}\n`;
+          
+          // Show award amount for awarded cases
+          if (c.disposition === "Awarded" && c.awardAmount) {
+            message += `   Award Amount: $${c.awardAmount}\n`;
+          }
+          
           message += `   Case Type: ${c.caseType || "Unknown"}\n\n`;
         });
         
