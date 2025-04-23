@@ -269,21 +269,30 @@ function standardizeMiddleName(name: string): string {
  * @returns The extracted and standardized respondent name or null if not found
  */
 function extractRespondentName(query: string): string | null {
+  // Skip patterns that clearly indicate arbitrator questions
+  const lowerQuery = query.toLowerCase();
+  
+  // Skip if query contains phrases that strongly indicate this is about an arbitrator
+  if (lowerQuery.includes("cases handled by") || 
+      lowerQuery.includes("handled by") ||
+      lowerQuery.includes("overseen by") ||
+      lowerQuery.includes("arbitrated by") ||
+      (lowerQuery.includes("arbitrator") && !lowerQuery.includes("against"))) {
+    return null;
+  }
+  
   // Common respondent name extraction patterns
   const patterns = [
     // Explicit patterns for "respondent" keyword
-    /(?:respondent|company)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
-    /respondent\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    /(?:respondent|company)\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    /(?:against|versus|vs\.?\s+)([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
     
-    // Patterns for specific prepositions
-    /(?:against|involving|with|by|for)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
+    // Respondent as subject
+    /\b(?:outcomes|results|rulings)\s+for\s+([A-Za-z0-9\s\.\-&']+?)\s+as\s+(?:a\s+)?respondent/i,
+    /([A-Za-z0-9\s\.\-&']+?)\s+as\s+(?:a\s+)?respondent/i,
     
-    // Pattern for company names with corp/inc/llc suffix
-    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))/i,
-    
-    // Patterns for outcomes phrasing
-    /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
+    // Company with legal suffix
+    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))\b/i
   ];
   
   for (const pattern of patterns) {
@@ -427,14 +436,16 @@ async function analyzeQuery(query: string): Promise<{
       !lowerQuery.includes("average") &&
       !lowerQuery.includes("award amount")
     ) {
-      // First, check for respondent patterns - this is higher priority
-      respondentName = extractRespondentName(query);
-      
-      if (respondentName) {
-        // If we found a respondent name, this is a respondent outcome analysis
+      // Check if query is explicitly about a respondent
+      if (lowerQuery.includes("respondent") || lowerQuery.includes("against") || lowerQuery.includes("versus") || lowerQuery.includes(" vs")) {
         type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
-      } else {
-        // If no respondent found, look for arbitrator patterns
+        respondentName = extractRespondentName(query);
+      } 
+      // Otherwise check for arbitrator patterns
+      else {
+        type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+        
+        // Extract arbitrator name with same patterns as other functions
         const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
         const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
         
@@ -442,9 +453,6 @@ async function analyzeQuery(query: string): Promise<{
         
         if (match && match[1]) {
           arbitratorName = cleanNameString(match[1].trim());
-          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
-        } else {
-          type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
         }
       }
     }
