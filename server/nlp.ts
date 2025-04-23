@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, desc } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
 
 /**
@@ -1069,7 +1069,7 @@ async function executeQueryByType(
           
         if (matchingNames.length === 0) {
           return {
-            data: { outcomes: [] },
+            data: { outcomes: [], cases: [] },
             message: `No cases found for respondent ${respondentName}${
               arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
             }.`,
@@ -1081,7 +1081,7 @@ async function executeQueryByType(
         let totalCases = 0;
         const nameStats = new Map<string, number>();
         
-        // Process each matching respondent name
+        // First pass: get the outcome stats and total counts
         for (const name of matchingNames) {
           // Build query for this specific respondent name
           let query = db
@@ -1121,14 +1121,58 @@ async function executeQueryByType(
         
         if (allOutcomes.size === 0) {
           return {
-            data: { outcomes: [] },
+            data: { outcomes: [], cases: [] },
             message: `No cases found for respondent ${respondentName}${
               arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
             }.`,
           };
         }
         
-        // Format the results
+        // Second pass: get the individual case details
+        // Build a query that will fetch cases for all matching respondent names
+        let caseQuery = db
+          .select({
+            id: arbitrationCases.id,
+            caseId: arbitrationCases.caseId,
+            forum: arbitrationCases.forum,
+            arbitratorName: arbitrationCases.arbitratorName,
+            claimantName: arbitrationCases.claimantName,
+            respondentName: arbitrationCases.respondentName,
+            filingDate: arbitrationCases.filingDate,
+            disposition: arbitrationCases.disposition,
+            claimAmount: arbitrationCases.claimAmount,
+            awardAmount: arbitrationCases.awardAmount,
+            caseType: arbitrationCases.caseType,
+            status: arbitrationCases.status,
+          })
+          .from(arbitrationCases);
+          
+        // Create a dynamic filter for all the matching respondent names
+        if (matchingNames.length === 1) {
+          caseQuery = caseQuery.where(sql`respondent_name = ${matchingNames[0]}`);
+        } else {
+          // For multiple names, create an OR condition
+          let nameConditions = sql`(`;
+          matchingNames.forEach((name, index) => {
+            if (index > 0) nameConditions = sql`${nameConditions} OR `;
+            nameConditions = sql`${nameConditions}respondent_name = ${name}`;
+          });
+          nameConditions = sql`${nameConditions})`;
+          
+          caseQuery = caseQuery.where(nameConditions);
+        }
+        
+        // Add arbitrator filter if provided
+        if (arbitratorName) {
+          caseQuery = caseQuery.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`) as any;
+        }
+        
+        // Order by filing date descending and limit to prevent too much data
+        caseQuery = caseQuery.orderBy(desc(arbitrationCases.filingDate)).limit(50);
+        
+        const allCases = await caseQuery.execute();
+        
+        // Format the outcomes results
         const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
           disposition,
           count,
@@ -1148,31 +1192,64 @@ async function executeQueryByType(
           
           // Only show the top 5 variations to keep the message concise
           const topNames = sortedNames.slice(0, 5);
+          message += topNames.join('\n');
+          
           if (sortedNames.length > 5) {
-            topNames.push(`- ...and ${sortedNames.length - 5} more variations`);
+            message += `\n...and ${sortedNames.length - 5} more variations`;
           }
           
-          message += topNames.join('\n') + '\n\nCombined outcomes:\n';
+          message += "\n\nCombined outcomes:\n";
         } else {
-          message = `${respondentName} has been involved in ${totalCases} cases${
+          message = `Found ${totalCases} cases for respondent ${matchingNames[0]}${
             arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
-          }. The outcomes are:\n`;
+          }:\n\n`;
+          message += "Outcomes summary:\n";
         }
         
         // Sort outcomes by count (highest first)
         outcomes.sort((a, b) => b.count - a.count);
         
+        // Add outcome summary
         outcomes.forEach((o) => {
           const percentage = ((o.count / totalCases) * 100).toFixed(1);
           message += `- ${o.disposition}: ${o.count} cases (${percentage}%)\n`;
         });
         
+        // Add detailed case listing
+        message += "\nCase details (showing " + 
+                   (allCases.length >= 50 ? "first 50" : "all " + allCases.length) + 
+                   " of " + totalCases + " total cases):\n\n";
+        
+        // Show the case details
+        allCases.forEach((c, i) => {
+          message += `${i + 1}. Case ID: ${c.caseId}\n`;
+          if (c.filingDate) message += `   Filing Date: ${c.filingDate}\n`;
+          message += `   Forum: ${c.forum || "Unknown"}\n`;
+          message += `   Arbitrator: ${c.arbitratorName || "Unknown"}\n`;
+          message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
+          if (c.claimantName) message += `   Claimant: ${c.claimantName}\n`;
+          message += `   Disposition: ${c.disposition || "Unknown"}\n`;
+          
+          // Show monetary amounts for cases that have them
+          if (c.claimAmount) message += `   Claim Amount: $${c.claimAmount}\n`;
+          if (c.awardAmount) message += `   Award Amount: $${c.awardAmount}\n`;
+          
+          if (c.caseType) message += `   Case Type: ${c.caseType}\n`;
+          message += "\n";
+        });
+        
+        if (totalCases > 50) {
+          message += "Note: Only showing the first 50 cases. There are " + totalCases + " total cases matching this query.";
+        }
+        
         return {
           data: { 
             outcomes,
+            cases: allCases,
             matchingNames: Array.from(nameStats.entries())
               .sort((a, b) => b[1] - a[1])
-              .map(([name, count]) => ({ name, count }))
+              .map(([name, count]) => ({ name, count })),
+            totalCaseCount: totalCases
           },
           message,
         };
