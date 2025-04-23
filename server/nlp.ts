@@ -269,30 +269,21 @@ function standardizeMiddleName(name: string): string {
  * @returns The extracted and standardized respondent name or null if not found
  */
 function extractRespondentName(query: string): string | null {
-  // Skip patterns that clearly indicate arbitrator questions
-  const lowerQuery = query.toLowerCase();
-  
-  // Skip if query contains phrases that strongly indicate this is about an arbitrator
-  if (lowerQuery.includes("cases handled by") || 
-      lowerQuery.includes("handled by") ||
-      lowerQuery.includes("overseen by") ||
-      lowerQuery.includes("arbitrated by") ||
-      (lowerQuery.includes("arbitrator") && !lowerQuery.includes("against"))) {
-    return null;
-  }
-  
   // Common respondent name extraction patterns
   const patterns = [
     // Explicit patterns for "respondent" keyword
-    /(?:respondent|company)\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    /(?:against|versus|vs\.?\s+)([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
+    /(?:respondent|company)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|by|with)|$)/i,
+    /respondent\s+(?:is|was|named)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
     
-    // Respondent as subject
-    /\b(?:outcomes|results|rulings)\s+for\s+([A-Za-z0-9\s\.\-&']+?)\s+as\s+(?:a\s+)?respondent/i,
-    /([A-Za-z0-9\s\.\-&']+?)\s+as\s+(?:a\s+)?respondent/i,
+    // Patterns for specific prepositions
+    /(?:against|involving|with|by|for)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|\s+(?:as|and|or|in|the|respondent|company|corporation|inc|llc|ltd)|$)/i,
     
-    // Company with legal suffix
-    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))\b/i
+    // Pattern for company names with corp/inc/llc suffix
+    /([A-Za-z0-9\s\.\-&']+?(?:\s+(?:Corp|Inc|LLC|Ltd|Corporation|Company)))/i,
+    
+    // Patterns for outcomes phrasing
+    /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
+    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
   ];
   
   for (const pattern of patterns) {
