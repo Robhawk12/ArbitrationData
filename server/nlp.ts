@@ -220,13 +220,14 @@ function standardizeName(name: string): string {
       return part.toLowerCase();
     }
     
-    // If already an initial with period, ensure proper formatting
+    // If already an initial (with or without period), standardize format without period
+    // This ensures "Dwight L. Smith" and "Dwight L Smith" are treated as the same person
     if (/^[A-Z]\.?$/i.test(part)) {
-      return part.charAt(0).toUpperCase() + '.';
+      return part.charAt(0).toUpperCase();
     }
     
-    // Convert full name to initial
-    return part.charAt(0).toUpperCase() + '.';
+    // Convert full name to initial without period
+    return part.charAt(0).toUpperCase();
   });
   
   // Step 8: Rejoin all parts
