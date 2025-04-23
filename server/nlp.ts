@@ -427,16 +427,30 @@ async function analyzeQuery(query: string): Promise<{
       !lowerQuery.includes("average") &&
       !lowerQuery.includes("award amount")
     ) {
-      // Check if query is explicitly about a respondent
-      if (lowerQuery.includes("respondent") || lowerQuery.includes("against") || lowerQuery.includes("versus") || lowerQuery.includes(" vs")) {
+      // First, check if query is explicitly about a respondent by looking for specific phrases
+      if (lowerQuery.includes(" as respondent") || 
+          lowerQuery.includes(" against ") || 
+          lowerQuery.includes(" vs ") ||
+          lowerQuery.includes(" versus ") ||
+          lowerQuery.includes("respondent") ||
+          /outcomes\s+for\s+[A-Z]/.test(query)) {  // "outcomes for CompanyName"
+        
         type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
         respondentName = extractRespondentName(query);
-      } 
-      // Otherwise check for arbitrator patterns
-      else {
+        
+        // Make sure we don't extract arbitrator name for respondent queries
+        arbitratorName = null;
+      }
+      // Explicitly check for arbitrator-specific patterns
+      else if (lowerQuery.includes("handled by") || 
+               lowerQuery.includes("overseen by") || 
+               lowerQuery.includes("arbitrated by") ||
+               lowerQuery.includes("arbitrator") ||
+               lowerQuery.includes("cases by")) {
+        
         type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
         
-        // Extract arbitrator name with same patterns as other functions
+        // Extract arbitrator name with the patterns that work
         const byPattern = /(?:handled|overseen|arbitrated|managed)\s+by\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
         const forPattern = /outcomes\s+for\s+((?:Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)?\s*[A-Za-z\s\.\-']+?)(?:[,\.\?]|$)/i;
         
@@ -444,6 +458,23 @@ async function analyzeQuery(query: string): Promise<{
         
         if (match && match[1]) {
           arbitratorName = cleanNameString(match[1].trim());
+        }
+        
+        // Make sure we don't extract respondent name for clear arbitrator queries
+        respondentName = null;
+      }
+      // If not clearly identified, try to decide based on context
+      else {
+        // Default to respondent analysis for less clear cases that mention companies
+        type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+        respondentName = extractRespondentName(query);
+        
+        // Only check for arbitrator if no respondent found
+        if (!respondentName) {
+          arbitratorName = extractArbitratorName(query);
+          if (arbitratorName) {
+            type = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+          }
         }
       }
     }
