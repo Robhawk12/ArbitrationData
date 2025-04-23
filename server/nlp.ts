@@ -57,8 +57,13 @@ function parseNameComponents(name: string): {
  * @returns True if names match according to rules, false otherwise
  */
 function doNamesMatch(name1: string, name2: string): boolean {
-  const name1Components = parseNameComponents(name1);
-  const name2Components = parseNameComponents(name2);
+  // First standardize both names to convert any full middle names to initials
+  const standardizedName1 = standardizeMiddleName(name1);
+  const standardizedName2 = standardizeMiddleName(name2);
+  
+  // Now parse the standardized names into components for comparison
+  const name1Components = parseNameComponents(standardizedName1);
+  const name2Components = parseNameComponents(standardizedName2);
   
   // First, check if last names match (case insensitive)
   if (!name1Components.lastName || !name2Components.lastName) return false;
@@ -171,13 +176,57 @@ function extractName(query: string): string | null {
 }
 
 /**
- * Cleans a name string by removing titles and suffixes
+ * Standardizes middle names by converting them to initials
+ * @param name The full name to standardize
+ * @returns The name with middle names converted to initials
+ */
+function standardizeMiddleName(name: string): string {
+  const nameParts = name.trim().split(/\s+/);
+  
+  // If we don't have at least 3 parts (first, middle, last), return the original
+  if (nameParts.length < 3) {
+    return name;
+  }
+  
+  // Assume the first part is the first name and the last part is the last name
+  const firstName = nameParts[0];
+  const lastName = nameParts[nameParts.length - 1];
+  
+  // All parts between first and last are middle names
+  const middleParts = nameParts.slice(1, nameParts.length - 1);
+  
+  // Convert each middle name to an initial followed by a period
+  const middleInitials = middleParts.map(part => {
+    // If it's already an initial (single character followed by period), keep it
+    if (/^[A-Z]\.$/i.test(part)) {
+      return part.toUpperCase();
+    }
+    // If it's a single character without period, add the period
+    else if (part.length === 1) {
+      return part.toUpperCase() + '.';
+    }
+    // Otherwise convert to initial
+    else {
+      return part.charAt(0).toUpperCase() + '.';
+    }
+  });
+  
+  // Rejoin all parts
+  return [firstName, ...middleInitials, lastName].join(' ');
+}
+
+/**
+ * Cleans a name string by removing titles and suffixes, and standardizing middle names
  * @param name The name to clean
- * @returns The cleaned name
+ * @returns The cleaned and standardized name
  */
 function cleanNameString(name: string): string {
-  return name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)\s+/i, '')
+  // Remove title prefixes and suffixes first
+  let cleanedName = name.replace(/^(Hon\.|Honorable|Judge|Justice|Dr\.|Professor|Prof\.|Mr\.|Mrs\.|Ms\.|Mx\.)\s+/i, '')
             .replace(/\s+(Esq\.|Sr\.|Jr\.|I|II|III|IV|V|MD|PhD|JD|DDS)\.?$/i, '');
+  
+  // Then standardize middle names to initials
+  return standardizeMiddleName(cleanedName);
 }
 
 /**
