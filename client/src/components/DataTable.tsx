@@ -559,12 +559,30 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                 <div className="flex items-center justify-between">
                   <span>Case ID</span>
                   <div className="flex flex-col">
-                    <svg className={`w-4 h-3 ${sortField === 'caseId' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 14l5-5 5 5H7z"/>
-                    </svg>
-                    <svg className={`w-4 h-3 ${sortField === 'caseId' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    </svg>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('caseId');
+                        setSortOrder('asc');
+                        setPage(1);
+                      }} 
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'caseId' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5H7z"/>
+                      </svg>
+                    </div>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('caseId');
+                        setSortOrder('desc');
+                        setPage(1);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'caseId' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 10l5 5 5-5H7z"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </th>
@@ -575,12 +593,30 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                 <div className="flex items-center justify-between">
                   <span>Arbitrator Name</span>
                   <div className="flex flex-col">
-                    <svg className={`w-4 h-3 ${sortField === 'arbitratorName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 14l5-5 5 5H7z"/>
-                    </svg>
-                    <svg className={`w-4 h-3 ${sortField === 'arbitratorName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    </svg>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('arbitratorName');
+                        setSortOrder('asc');
+                        setPage(1);
+                      }} 
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'arbitratorName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5H7z"/>
+                      </svg>
+                    </div>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('arbitratorName');
+                        setSortOrder('desc');
+                        setPage(1);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'arbitratorName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 10l5 5 5-5H7z"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </th>
@@ -591,12 +627,30 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                 <div className="flex items-center justify-between">
                   <span>Respondent</span>
                   <div className="flex flex-col">
-                    <svg className={`w-4 h-3 ${sortField === 'respondentName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 14l5-5 5 5H7z"/>
-                    </svg>
-                    <svg className={`w-4 h-3 ${sortField === 'respondentName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    </svg>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('respondentName');
+                        setSortOrder('asc');
+                        setPage(1);
+                      }} 
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'respondentName' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5H7z"/>
+                      </svg>
+                    </div>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('respondentName');
+                        setSortOrder('desc');
+                        setPage(1);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'respondentName' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 10l5 5 5-5H7z"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </th>
@@ -607,12 +661,30 @@ export default function DataTable({ filter, refreshTrigger, onSearch }: DataTabl
                 <div className="flex items-center justify-between">
                   <span>Consumer Attorney</span>
                   <div className="flex flex-col">
-                    <svg className={`w-4 h-3 ${sortField === 'consumerAttorney' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 14l5-5 5 5H7z"/>
-                    </svg>
-                    <svg className={`w-4 h-3 ${sortField === 'consumerAttorney' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    </svg>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('consumerAttorney');
+                        setSortOrder('asc');
+                        setPage(1);
+                      }} 
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'consumerAttorney' && sortOrder === 'asc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14l5-5 5 5H7z"/>
+                      </svg>
+                    </div>
+                    <div onClick={(e) => {
+                        e.stopPropagation();
+                        setSortField('consumerAttorney');
+                        setSortOrder('desc');
+                        setPage(1);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <svg className={`w-4 h-3 ${sortField === 'consumerAttorney' && sortOrder === 'desc' ? 'text-[#11572e]' : 'text-[#97ba9e]'}`} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 10l5 5 5-5H7z"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </th>
