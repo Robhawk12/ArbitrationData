@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { sql, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
 
 /**
@@ -1069,7 +1069,7 @@ async function executeQueryByType(
           
         if (matchingNames.length === 0) {
           return {
-            data: { outcomes: [], cases: [] },
+            data: { outcomes: [] },
             message: `No cases found for respondent ${respondentName}${
               arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
             }.`,
@@ -1081,7 +1081,7 @@ async function executeQueryByType(
         let totalCases = 0;
         const nameStats = new Map<string, number>();
         
-        // First pass: get the outcome stats and total counts
+        // Process each matching respondent name
         for (const name of matchingNames) {
           // Build query for this specific respondent name
           let query = db
@@ -1121,36 +1121,14 @@ async function executeQueryByType(
         
         if (allOutcomes.size === 0) {
           return {
-            data: { outcomes: [], cases: [] },
+            data: { outcomes: [] },
             message: `No cases found for respondent ${respondentName}${
               arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
             }.`,
           };
         }
         
-        // Second pass: get the individual case details
-        // We'll use a simpler approach with a raw SQL query to avoid Drizzle issues
-        let query = `
-          SELECT 
-            id, case_id, forum, arbitrator_name, claimant_name, respondent_name, 
-            filing_date, disposition, claim_amount, award_amount, case_type, status
-          FROM arbitration_cases
-          WHERE respondent_name IN (${matchingNames.map(name => `'${name.replace(/'/g, "''")}'`).join(',')})
-        `;
-        
-        // Add arbitrator filter if provided
-        if (arbitratorName) {
-          query += ` AND LOWER(arbitrator_name) LIKE LOWER('%${arbitratorName.replace(/'/g, "''")}%')`;
-        }
-        
-        // Order by filing date descending and limit to prevent too much data
-        query += ` ORDER BY filing_date DESC LIMIT 50`;
-        
-        const result = await db.execute(sql.raw(query));
-        // Convert the PostgreSQL result to a proper array we can work with
-        const allCases: Record<string, any>[] = Array.isArray(result) ? result : (result as any).rows || [];
-        
-        // Format the outcomes results
+        // Format the results
         const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
           disposition,
           count,
@@ -1170,65 +1148,31 @@ async function executeQueryByType(
           
           // Only show the top 5 variations to keep the message concise
           const topNames = sortedNames.slice(0, 5);
-          message += topNames.join('\n');
-          
           if (sortedNames.length > 5) {
-            message += `\n...and ${sortedNames.length - 5} more variations`;
+            topNames.push(`- ...and ${sortedNames.length - 5} more variations`);
           }
           
-          message += "\n\nCombined outcomes:\n";
+          message += topNames.join('\n') + '\n\nCombined outcomes:\n';
         } else {
-          message = `Found ${totalCases} cases for respondent ${matchingNames[0]}${
+          message = `${respondentName} has been involved in ${totalCases} cases${
             arbitratorName ? ` with arbitrator ${arbitratorName}` : ""
-          }:\n\n`;
-          message += "Outcomes summary:\n";
+          }. The outcomes are:\n`;
         }
         
         // Sort outcomes by count (highest first)
         outcomes.sort((a, b) => b.count - a.count);
         
-        // Add outcome summary
         outcomes.forEach((o) => {
           const percentage = ((o.count / totalCases) * 100).toFixed(1);
           message += `- ${o.disposition}: ${o.count} cases (${percentage}%)\n`;
         });
         
-        // Add detailed case listing
-        message += "\nCase details (showing " + 
-                   (allCases.length >= 50 ? "first 50" : "all " + allCases.length) + 
-                   " of " + totalCases + " total cases):\n\n";
-        
-        // Show the case details
-        allCases.forEach((c, i) => {
-          // With raw SQL, we need to use snake_case column names
-          message += `${i + 1}. Case ID: ${c.case_id}\n`;
-          if (c.filing_date) message += `   Filing Date: ${c.filing_date}\n`;
-          message += `   Forum: ${c.forum || "Unknown"}\n`;
-          message += `   Arbitrator: ${c.arbitrator_name || "Unknown"}\n`;
-          message += `   Respondent: ${c.respondent_name || "Unknown"}\n`;
-          if (c.claimant_name) message += `   Claimant: ${c.claimant_name}\n`;
-          message += `   Disposition: ${c.disposition || "Unknown"}\n`;
-          
-          // Show monetary amounts for cases that have them
-          if (c.claim_amount) message += `   Claim Amount: $${c.claim_amount}\n`;
-          if (c.award_amount) message += `   Award Amount: $${c.award_amount}\n`;
-          
-          if (c.case_type) message += `   Case Type: ${c.case_type}\n`;
-          message += "\n";
-        });
-        
-        if (totalCases > 50) {
-          message += "Note: Only showing the first 50 cases. There are " + totalCases + " total cases matching this query.";
-        }
-        
         return {
           data: { 
             outcomes,
-            cases: allCases,
             matchingNames: Array.from(nameStats.entries())
               .sort((a, b) => b[1] - a[1])
-              .map(([name, count]) => ({ name, count })),
-            totalCaseCount: totalCases
+              .map(([name, count]) => ({ name, count }))
           },
           message,
         };
