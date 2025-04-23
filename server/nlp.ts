@@ -2,6 +2,83 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
 
+/**
+ * Parses a name into its components for advanced matching
+ * @param name Full name to parse
+ * @returns Object with parsed name components
+ */
+function parseNameComponents(name: string): { 
+  firstName: string | null; 
+  middleInitial: string | null; 
+  lastName: string | null;
+} {
+  if (!name) return { firstName: null, middleInitial: null, lastName: null };
+  
+  // Remove any extra spaces and split the name
+  const nameParts = name.trim().split(/\s+/);
+  
+  // If only one word, assume it's a last name
+  if (nameParts.length === 1) {
+    return { firstName: null, middleInitial: null, lastName: nameParts[0] };
+  }
+  
+  // Extract last name (always assumed to be the last part)
+  const lastName = nameParts[nameParts.length - 1];
+  
+  // Extract first name (always assumed to be the first part)
+  const firstName = nameParts[0];
+  
+  // Check for middle initial (if name has more than 2 parts)
+  let middleInitial = null;
+  if (nameParts.length > 2) {
+    // Check if middle part is an initial (one letter followed by a period or just one letter)
+    const middlePart = nameParts[1];
+    if (middlePart.length === 1 || (middlePart.length === 2 && middlePart.endsWith('.'))) {
+      middleInitial = middlePart.charAt(0);
+    }
+  }
+  
+  return { firstName, middleInitial, lastName };
+}
+
+/**
+ * Determines if two names match according to the specified rules:
+ * 1. Match by last name first
+ * 2. Then match by first name
+ * 3. Names with a middle initial are considered a match with names without a middle initial
+ * 4. Names with different middle initials are not considered a match
+ * 
+ * @param name1 First name to compare
+ * @param name2 Second name to compare
+ * @returns True if names match according to rules, false otherwise
+ */
+function doNamesMatch(name1: string, name2: string): boolean {
+  const name1Components = parseNameComponents(name1);
+  const name2Components = parseNameComponents(name2);
+  
+  // First, check if last names match (case insensitive)
+  if (!name1Components.lastName || !name2Components.lastName) return false;
+  
+  const lastNamesMatch = name1Components.lastName.toLowerCase() === name2Components.lastName.toLowerCase();
+  if (!lastNamesMatch) return false;
+  
+  // If last names match but either name doesn't have a first name, consider it a match
+  if (!name1Components.firstName || !name2Components.firstName) return true;
+  
+  // Check if first names match (case insensitive)
+  const firstNamesMatch = name1Components.firstName.toLowerCase() === name2Components.firstName.toLowerCase();
+  if (!firstNamesMatch) return false;
+  
+  // If we have different middle initials, it's not a match
+  if (name1Components.middleInitial && name2Components.middleInitial && 
+      name1Components.middleInitial.toLowerCase() !== name2Components.middleInitial.toLowerCase()) {
+    return false;
+  }
+  
+  // If we got here, the names match according to our rules
+  return true;
+}
+
 // Define the types of questions the system can handle
 const QUERY_TYPES = {
   ARBITRATOR_CASE_COUNT: "arbitrator_case_count",
@@ -293,73 +370,72 @@ async function executeQueryByType(
           return { data: null, message: "No arbitrator name specified in the query." };
         }
         
-        // First, get the count of cases with this arbitrator name
-        const result = await db
-          .select({ count: sql`COUNT(*)` })
+        // Get all distinct arbitrator names from the database to do advanced name matching
+        const allArbitratorNames = await db
+          .select({ name: arbitrationCases.arbitratorName })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
+          .where(
+            // First do a basic filter to narrow down the results
+            sql`arbitrator_name IS NOT NULL AND LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName.split(' ').pop() || '' : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.arbitratorName)
           .execute();
-        
-        const count = Number(result[0]?.count || 0);
-        
-        // If we have a lot of matching cases, the arbitrator name might be too general (like "Smith")
-        // Let's check if there are multiple arbitrators that match
-        if (count > 5) {
-          // Get distinct arbitrator names that match
-          const distinctNames = await db
-            .select({ 
-              name: arbitrationCases.arbitratorName,
-              count: sql`COUNT(*)`
-            })
-            .from(arbitrationCases)
-            .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
-            .groupBy(arbitrationCases.arbitratorName)
-            .orderBy(sql`COUNT(*)`, "desc")
-            .limit(5)
-            .execute();
           
-          // If we found multiple distinct names, provide data for each
-          if (distinctNames.length > 1) {
-            let message = `I found ${distinctNames.length} arbitrators matching "${arbitratorName}":\n\n`;
-            
-            distinctNames.forEach((item) => {
-              message += `- ${item.name}: ${item.count} cases\n`;
-            });
-            
-            // If there are more distinct names than we showed
-            if (distinctNames.length === 5) {
-              const totalDistinct = await db
-                .select({ 
-                  countDistinct: sql`COUNT(DISTINCT arbitrator_name)` 
-                })
-                .from(arbitrationCases)
-                .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
-                .execute();
-              
-              const totalNames = Number(totalDistinct[0]?.countDistinct || 0);
-              
-              if (totalNames > 5) {
-                message += `\nThere are ${totalNames - 5} more arbitrators matching this name. Please provide a more specific name to narrow down the results.`;
-              }
-            }
-            
-            return {
-              data: { 
-                count: count,
-                distinctNames: distinctNames.map(item => ({
-                  name: item.name,
-                  count: Number(item.count)
-                }))
-              },
-              message: message,
-            };
-          }
+        // Find all matching names using our advanced name matching logic
+        const matchingNames = allArbitratorNames
+          .filter(item => item.name && doNamesMatch(arbitratorName, item.name))
+          .map(item => item.name);
+          
+        if (matchingNames.length === 0) {
+          return {
+            data: { count: 0 },
+            message: `${arbitratorName} has handled 0 arbitration cases.`,
+          };
         }
         
-        // If we only have one name match or a small number of cases, just return the count
+        // Get the count for all matching names
+        let totalCount = 0;
+        const nameStats = [];
+        
+        for (const name of matchingNames) {
+          const result = await db
+            .select({ count: sql`COUNT(*)` })
+            .from(arbitrationCases)
+            .where(sql`arbitrator_name = ${name}`)
+            .execute();
+            
+          const count = Number(result[0]?.count || 0);
+          totalCount += count;
+          
+          nameStats.push({
+            name,
+            count
+          });
+        }
+        
+        // If we found multiple distinct matching names
+        if (matchingNames.length > 1) {
+          let message = `I found ${matchingNames.length} arbitrators matching "${arbitratorName}" with a total of ${totalCount} cases:\n\n`;
+          
+          nameStats.sort((a, b) => b.count - a.count); // Sort by count descending
+          
+          nameStats.forEach((item) => {
+            message += `- ${item.name}: ${item.count} cases\n`;
+          });
+          
+          return {
+            data: { 
+              count: totalCount,
+              distinctNames: nameStats
+            },
+            message: message,
+          };
+        }
+        
+        // If we only have one name match
         return {
-          data: { count },
-          message: `${arbitratorName} has handled ${count} arbitration cases.`,
+          data: { count: totalCount },
+          message: `${arbitratorName} has handled ${totalCount} arbitration cases.`,
         };
       }
       
@@ -368,80 +444,87 @@ async function executeQueryByType(
           return { data: null, message: "No arbitrator name specified in the query." };
         }
         
-        // First, get the count of cases
-        const countResult = await db
-          .select({ count: sql`COUNT(*)` })
+        // Get all distinct arbitrator names from the database to do advanced name matching
+        const allArbitratorNames = await db
+          .select({ name: arbitrationCases.arbitratorName })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
+          .where(
+            // First do a basic filter to narrow down the results
+            sql`arbitrator_name IS NOT NULL AND LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName.split(' ').pop() || '' : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.arbitratorName)
           .execute();
-        
-        const totalCount = Number(countResult[0]?.count || 0);
-        
-        // Check if there are multiple arbitrators that match
-        if (totalCount > 5) {
-          // Get distinct arbitrator names
-          const distinctNames = await db
-            .select({ 
-              name: arbitrationCases.arbitratorName,
-              count: sql`COUNT(*)`
-            })
-            .from(arbitrationCases)
-            .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
-            .groupBy(arbitrationCases.arbitratorName)
-            .orderBy(sql`COUNT(*)`, "desc")
-            .limit(5)
-            .execute();
           
-          // If we found multiple names, ask for clarification
-          if (distinctNames.length > 1) {
-            let message = `I found ${distinctNames.length} arbitrators matching "${arbitratorName}":\n\n`;
-            
-            distinctNames.forEach((item) => {
-              message += `- ${item.name}: ${item.count} cases\n`;
-            });
-            
-            message += `\nPlease specify which arbitrator you are interested in for outcome analysis.`;
-            
-            return {
-              data: { 
-                distinctNames: distinctNames.map(item => ({
-                  name: item.name,
-                  count: Number(item.count)
-                }))
-              },
-              message: message,
-            };
-          }
-        }
-        
-        // If we get here, we either have a specific name or need to analyze all matches
-        // Get outcomes grouped by disposition
-        const results = await db
-          .select({
-            disposition: arbitrationCases.disposition,
-            count: sql`COUNT(*)`,
-          })
-          .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
-          .groupBy(arbitrationCases.disposition)
-          .execute();
-        
-        if (results.length === 0) {
+        // Find all matching names using our advanced name matching logic
+        const matchingNames = allArbitratorNames
+          .filter(item => item.name && doNamesMatch(arbitratorName, item.name))
+          .map(item => item.name);
+          
+        if (matchingNames.length === 0) {
           return {
             data: { outcomes: [] },
             message: `No cases found for arbitrator ${arbitratorName}.`,
           };
         }
         
+        // If we found multiple names, aggregate outcomes across all matching names
+        const allOutcomes = new Map<string, number>();
+        let totalCases = 0;
+        
+        // Process each matching name
+        for (const name of matchingNames) {
+          // Get outcomes grouped by disposition for this name
+          const results = await db
+            .select({
+              disposition: arbitrationCases.disposition,
+              count: sql`COUNT(*)`,
+            })
+            .from(arbitrationCases)
+            .where(sql`arbitrator_name = ${name}`)
+            .groupBy(arbitrationCases.disposition)
+            .execute();
+            
+          // Aggregate results
+          for (const result of results) {
+            const disposition = result.disposition || "Unknown";
+            const count = Number(result.count || 0);
+            totalCases += count;
+            
+            // Add to our aggregate map
+            const currentCount = allOutcomes.get(disposition) || 0;
+            allOutcomes.set(disposition, currentCount + count);
+          }
+        }
+        
+        // If no results found
+        if (allOutcomes.size === 0) {
+          return {
+            data: { outcomes: [] },
+            message: `No outcome data found for arbitrator ${arbitratorName}.`,
+          };
+        }
+        
         // Format the results
-        const outcomes = results.map((r) => ({
-          disposition: r.disposition || "Unknown",
-          count: Number(r.count),
+        const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
+          disposition,
+          count,
         }));
         
         // Create a summary message
-        const totalCases = outcomes.reduce((sum, o) => sum + o.count, 0);
-        let message = `${arbitratorName} has handled ${totalCases} cases with the following outcomes:\n`;
+        let message = '';
+        
+        if (matchingNames.length > 1) {
+          message = `Found ${matchingNames.length} arbitrators matching "${arbitratorName}" with a total of ${totalCases} cases:\n`;
+          matchingNames.forEach(name => {
+            message += `- ${name}\n`;
+          });
+          message += `\nCombined outcomes across all matching arbitrators:\n`;
+        } else {
+          message = `${matchingNames[0]} has handled ${totalCases} cases with the following outcomes:\n`;
+        }
+        
+        // Sort outcomes by count (highest first)
+        outcomes.sort((a, b) => b.count - a.count);
         
         outcomes.forEach((o) => {
           const percentage = ((o.count / totalCases) * 100).toFixed(1);
@@ -449,7 +532,11 @@ async function executeQueryByType(
         });
         
         return {
-          data: { outcomes },
+          data: { 
+            outcomes,
+            matchingNames,
+            totalCases
+          },
           message,
         };
       }
@@ -459,25 +546,62 @@ async function executeQueryByType(
           return { data: null, message: "No arbitrator name specified in the query." };
         }
         
-        // Build the query
-        let query = db
-          .select({
-            avgAward: sql`AVG(NULLIF(award_amount, '')::numeric)`,
-            countCases: sql`COUNT(*)`,
-            countWithAward: sql`COUNT(NULLIF(award_amount, ''))`,
-          })
+        // Get all distinct arbitrator names from the database to do advanced name matching
+        const allArbitratorNames = await db
+          .select({ name: arbitrationCases.arbitratorName })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`);
-        
-        // Add disposition filter if provided
-        if (disposition) {
-          const dispositionValue = disposition; // Non-null assertion
-          query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + dispositionValue + '%'})`) as any;
+          .where(
+            // First do a basic filter to narrow down the results
+            sql`arbitrator_name IS NOT NULL AND LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName.split(' ').pop() || '' : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.arbitratorName)
+          .execute();
+          
+        // Find all matching names using our advanced name matching logic
+        const matchingNames = allArbitratorNames
+          .filter(item => item.name && doNamesMatch(arbitratorName, item.name))
+          .map(item => item.name);
+          
+        if (matchingNames.length === 0) {
+          return {
+            data: null,
+            message: `No cases found for arbitrator ${arbitratorName}.`,
+          };
         }
         
-        const result = await query.execute();
+        // If we found matching names, calculate aggregate award statistics
+        let totalCases = 0;
+        let totalWithAward = 0;
+        let totalAwardAmount = 0;
         
-        if (!result.length || result[0].countCases === 0) {
+        // Process each matching name
+        for (const name of matchingNames) {
+          // Build query for this specific name
+          let query = db
+            .select({
+              avgAward: sql`AVG(NULLIF(award_amount, '')::numeric)`,
+              countCases: sql`COUNT(*)`,
+              countWithAward: sql`COUNT(NULLIF(award_amount, ''))`,
+              sumAward: sql`SUM(NULLIF(award_amount, '')::numeric)`,
+            })
+            .from(arbitrationCases)
+            .where(sql`arbitrator_name = ${name}`);
+          
+          // Add disposition filter if provided
+          if (disposition) {
+            query = query.where(sql`LOWER(disposition) LIKE LOWER(${'%' + disposition + '%'})`) as any;
+          }
+          
+          const result = await query.execute();
+          
+          if (result.length && result[0].countCases > 0) {
+            totalCases += Number(result[0].countCases || 0);
+            totalWithAward += Number(result[0].countWithAward || 0);
+            totalAwardAmount += Number(result[0].sumAward || 0);
+          }
+        }
+        
+        if (totalCases === 0) {
           return {
             data: null,
             message: `No cases found for arbitrator ${arbitratorName}${
@@ -486,32 +610,53 @@ async function executeQueryByType(
           };
         }
         
-        const { avgAward, countCases, countWithAward } = result[0];
-        
-        if (countWithAward === 0) {
+        if (totalWithAward === 0) {
           return {
-            data: { avgAward: 0, countCases: Number(countCases), countWithAward: 0 },
-            message: `${arbitratorName} has handled ${countCases} cases${
+            data: { 
+              avgAward: 0, 
+              countCases: totalCases, 
+              countWithAward: 0,
+              matchingNames
+            },
+            message: `${matchingNames.length > 1 ? 'Matching arbitrators' : matchingNames[0]} ${matchingNames.length > 1 ? 'have' : 'has'} handled ${totalCases} cases${
               disposition ? ` with disposition containing "${disposition}"` : ""
             }, but none have award amount data available.`,
           };
         }
         
+        // Calculate the average award amount
+        const avgAward = totalAwardAmount / totalWithAward;
+        
         // Format the average award with $ and commas
         const formattedAvgAward = new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: 'USD',
-        }).format(Number(avgAward) || 0);
+        }).format(avgAward || 0);
+        
+        // Create appropriate message based on whether we have multiple matching names
+        let message = '';
+        if (matchingNames.length > 1) {
+          message = `Found ${matchingNames.length} arbitrators matching "${arbitratorName}":\n`;
+          matchingNames.forEach(name => {
+            message += `- ${name}\n`;
+          });
+          message += `\nCombined, they have handled ${totalCases} cases${
+            disposition ? ` with disposition containing "${disposition}"` : ""
+          }. The average award amount is ${formattedAvgAward} (based on ${totalWithAward} cases with award data).`;
+        } else {
+          message = `${matchingNames[0]} has handled ${totalCases} cases${
+            disposition ? ` with disposition containing "${disposition}"` : ""
+          }. The average award amount is ${formattedAvgAward} (based on ${totalWithAward} cases with award data).`;
+        }
         
         return {
           data: {
-            avgAward: Number(avgAward) || 0,
-            countCases: Number(countCases),
-            countWithAward: Number(countWithAward),
+            avgAward: avgAward || 0,
+            countCases: totalCases,
+            countWithAward: totalWithAward,
+            matchingNames
           },
-          message: `${arbitratorName} has handled ${countCases} cases${
-            disposition ? ` with disposition containing "${disposition}"` : ""
-          }. The average award amount is ${formattedAvgAward} (based on ${countWithAward} cases with award data).`,
+          message,
         };
       }
       
@@ -520,46 +665,104 @@ async function executeQueryByType(
           return { data: null, message: "No arbitrator name specified in the query." };
         }
         
-        // Get the list of cases
-        const cases = await db
-          .select({
-            caseId: arbitrationCases.caseId,
-            // Use the column names exactly as they are in the schema
-            respondentName: arbitrationCases.respondentName,
-            filingDate: arbitrationCases.filingDate,
-            disposition: arbitrationCases.disposition,
-            caseType: arbitrationCases.caseType,
-          })
+        // Get all distinct arbitrator names from the database to do advanced name matching
+        const allArbitratorNames = await db
+          .select({ name: arbitrationCases.arbitratorName })
           .from(arbitrationCases)
-          .where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName : '') + '%'})`)
-          .limit(50) // Limit to prevent extremely large results
+          .where(
+            // First do a basic filter to narrow down the results
+            sql`arbitrator_name IS NOT NULL AND LOWER(arbitrator_name) LIKE LOWER(${'%' + (arbitratorName ? arbitratorName.split(' ').pop() || '' : '') + '%'})`
+          )
+          .groupBy(arbitrationCases.arbitratorName)
           .execute();
-        
-        if (cases.length === 0) {
+          
+        // Find all matching names using our advanced name matching logic
+        const matchingNames = allArbitratorNames
+          .filter(item => item.name && doNamesMatch(arbitratorName, item.name))
+          .map(item => item.name);
+          
+        if (matchingNames.length === 0) {
           return {
             data: { cases: [] },
             message: `No cases found for arbitrator ${arbitratorName}.`,
           };
         }
         
-        let message = `Cases handled by ${arbitratorName} (showing ${
-          cases.length >= 50 ? "first 50" : "all " + cases.length
-        }):\n\n`;
+        // Collect all cases for all matching arbitrator names
+        let allCases = [];
         
-        cases.forEach((c, i) => {
+        for (const name of matchingNames) {
+          // Get the list of cases for this specific arbitrator name
+          const cases = await db
+            .select({
+              caseId: arbitrationCases.caseId,
+              arbitratorName: arbitrationCases.arbitratorName,
+              respondentName: arbitrationCases.respondentName,
+              filingDate: arbitrationCases.filingDate,
+              disposition: arbitrationCases.disposition,
+              caseType: arbitrationCases.caseType,
+            })
+            .from(arbitrationCases)
+            .where(sql`arbitrator_name = ${name}`)
+            .execute();
+            
+          allCases = [...allCases, ...cases];
+        }
+        
+        // Enforce a limit to prevent extremely large results
+        // First sort by filing date if available (most recent first)
+        allCases.sort((a, b) => {
+          if (!a.filingDate && !b.filingDate) return 0;
+          if (!a.filingDate) return 1;
+          if (!b.filingDate) return -1;
+          return new Date(b.filingDate).getTime() - new Date(a.filingDate).getTime();
+        });
+        
+        const limitedCases = allCases.slice(0, 50);
+        
+        if (limitedCases.length === 0) {
+          return {
+            data: { cases: [] },
+            message: `No cases found for arbitrator ${arbitratorName}.`,
+          };
+        }
+        
+        // Prepare response message based on whether we found multiple matching names
+        let message = '';
+        
+        if (matchingNames.length > 1) {
+          message = `Found ${matchingNames.length} arbitrators matching "${arbitratorName}":\n`;
+          matchingNames.forEach(name => {
+            message += `- ${name}\n`;
+          });
+          message += `\nCombined cases (showing ${
+            limitedCases.length >= 50 ? "first 50" : "all " + limitedCases.length
+          } of ${allCases.length} total):\n\n`;
+        } else {
+          message = `Cases handled by ${matchingNames[0]} (showing ${
+            limitedCases.length >= 50 ? "first 50" : "all " + limitedCases.length
+          }):\n\n`;
+        }
+        
+        limitedCases.forEach((c, i) => {
           message += `${i + 1}. Case ID: ${c.caseId}\n`;
+          message += `   Arbitrator: ${c.arbitratorName}\n`;
           message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
           message += `   Filing Date: ${c.filingDate || "Unknown"}\n`;
           message += `   Disposition: ${c.disposition || "Unknown"}\n`;
           message += `   Case Type: ${c.caseType || "Unknown"}\n\n`;
         });
         
-        if (cases.length >= 50) {
-          message += "Note: Only showing the first 50 cases. The arbitrator may have handled more cases.";
+        if (allCases.length > 50) {
+          message += "Note: Only showing the first 50 cases. The arbitrator(s) have handled more cases.";
         }
         
         return {
-          data: { cases },
+          data: { 
+            cases: limitedCases,
+            matchingNames,
+            totalCaseCount: allCases.length
+          },
           message,
         };
       }
