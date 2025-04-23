@@ -1129,48 +1129,26 @@ async function executeQueryByType(
         }
         
         // Second pass: get the individual case details
-        // Build a query that will fetch cases for all matching respondent names
-        let caseQuery = db
-          .select({
-            id: arbitrationCases.id,
-            caseId: arbitrationCases.caseId,
-            forum: arbitrationCases.forum,
-            arbitratorName: arbitrationCases.arbitratorName,
-            claimantName: arbitrationCases.claimantName,
-            respondentName: arbitrationCases.respondentName,
-            filingDate: arbitrationCases.filingDate,
-            disposition: arbitrationCases.disposition,
-            claimAmount: arbitrationCases.claimAmount,
-            awardAmount: arbitrationCases.awardAmount,
-            caseType: arbitrationCases.caseType,
-            status: arbitrationCases.status,
-          })
-          .from(arbitrationCases);
-          
-        // Create a dynamic filter for all the matching respondent names
-        if (matchingNames.length === 1) {
-          caseQuery = caseQuery.where(sql`respondent_name = ${matchingNames[0]}`);
-        } else {
-          // For multiple names, create an OR condition
-          let nameConditions = sql`(`;
-          matchingNames.forEach((name, index) => {
-            if (index > 0) nameConditions = sql`${nameConditions} OR `;
-            nameConditions = sql`${nameConditions}respondent_name = ${name}`;
-          });
-          nameConditions = sql`${nameConditions})`;
-          
-          caseQuery = caseQuery.where(nameConditions);
-        }
+        // We'll use a simpler approach with a raw SQL query to avoid Drizzle issues
+        let query = `
+          SELECT 
+            id, case_id, forum, arbitrator_name, claimant_name, respondent_name, 
+            filing_date, disposition, claim_amount, award_amount, case_type, status
+          FROM arbitration_cases
+          WHERE respondent_name IN (${matchingNames.map(name => `'${name.replace(/'/g, "''")}'`).join(',')})
+        `;
         
         // Add arbitrator filter if provided
         if (arbitratorName) {
-          caseQuery = caseQuery.where(sql`LOWER(arbitrator_name) LIKE LOWER(${'%' + arbitratorName + '%'})`) as any;
+          query += ` AND LOWER(arbitrator_name) LIKE LOWER('%${arbitratorName.replace(/'/g, "''")}%')`;
         }
         
         // Order by filing date descending and limit to prevent too much data
-        caseQuery = caseQuery.orderBy(desc(arbitrationCases.filingDate)).limit(50);
+        query += ` ORDER BY filing_date DESC LIMIT 50`;
         
-        const allCases = await caseQuery.execute();
+        const result = await db.execute(sql.raw(query));
+        // Convert the PostgreSQL result to a proper array we can work with
+        const allCases: Record<string, any>[] = Array.isArray(result) ? result : (result as any).rows || [];
         
         // Format the outcomes results
         const outcomes = Array.from(allOutcomes.entries()).map(([disposition, count]) => ({
@@ -1222,19 +1200,20 @@ async function executeQueryByType(
         
         // Show the case details
         allCases.forEach((c, i) => {
-          message += `${i + 1}. Case ID: ${c.caseId}\n`;
-          if (c.filingDate) message += `   Filing Date: ${c.filingDate}\n`;
+          // With raw SQL, we need to use snake_case column names
+          message += `${i + 1}. Case ID: ${c.case_id}\n`;
+          if (c.filing_date) message += `   Filing Date: ${c.filing_date}\n`;
           message += `   Forum: ${c.forum || "Unknown"}\n`;
-          message += `   Arbitrator: ${c.arbitratorName || "Unknown"}\n`;
-          message += `   Respondent: ${c.respondentName || "Unknown"}\n`;
-          if (c.claimantName) message += `   Claimant: ${c.claimantName}\n`;
+          message += `   Arbitrator: ${c.arbitrator_name || "Unknown"}\n`;
+          message += `   Respondent: ${c.respondent_name || "Unknown"}\n`;
+          if (c.claimant_name) message += `   Claimant: ${c.claimant_name}\n`;
           message += `   Disposition: ${c.disposition || "Unknown"}\n`;
           
           // Show monetary amounts for cases that have them
-          if (c.claimAmount) message += `   Claim Amount: $${c.claimAmount}\n`;
-          if (c.awardAmount) message += `   Award Amount: $${c.awardAmount}\n`;
+          if (c.claim_amount) message += `   Claim Amount: $${c.claim_amount}\n`;
+          if (c.award_amount) message += `   Award Amount: $${c.award_amount}\n`;
           
-          if (c.caseType) message += `   Case Type: ${c.caseType}\n`;
+          if (c.case_type) message += `   Case Type: ${c.case_type}\n`;
           message += "\n";
         });
         
