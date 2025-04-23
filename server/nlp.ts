@@ -283,7 +283,11 @@ function extractRespondentName(query: string): string | null {
     
     // Patterns for outcomes phrasing
     /outcomes\s+(?:for|of|by)\s+([A-Za-z0-9\s\.\-&']+?)(?:[,\.\?]|$)/i,
-    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i
+    /([A-Za-z0-9\s\.\-&']+?)\s+(?:as respondent)/i,
+    
+    // Special pattern for "cases for X as respondent"
+    /(?:cases?\s+for|for)\s+([A-Za-z0-9\s\.\-&']+?)\s+as\s+respondent/i,
+    /(?:list|show)\s+cases?\s+for\s+([A-Za-z0-9\s\.\-&']+?)(?:\s+as\s+respondent|\s+with|\s+against|[,\.\?]|$)/i
   ];
   
   for (const pattern of patterns) {
@@ -519,7 +523,10 @@ async function analyzeQuery(query: string): Promise<{
           lowerQuery.includes("with") || 
           lowerQuery.includes("against") || 
           lowerQuery.includes("versus") ||
-          lowerQuery.includes(" vs ")) {
+          lowerQuery.includes(" vs ") ||
+          lowerQuery.includes(" for ") ||
+          lowerQuery.includes(" as respondent") ||
+          /\bcases?\s+for\s+/i.test(query)) {
         
         type = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
         respondentName = extractRespondentName(query);
