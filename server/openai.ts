@@ -66,7 +66,9 @@ Provide a confidence score (0-1) indicating your certainty of the analysis.`
       temperature: 0.3,
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    // Handle null content by providing a default empty object
+    const content = response.choices[0].message.content as string || "{}";
+    const result = JSON.parse(content);
     
     return {
       intent: result.intent || "UNKNOWN",
@@ -186,7 +188,9 @@ Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.`
       temperature: 0.2,
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    // Handle null content by providing a default empty object
+    const content = response.choices[0].message.content as string || "{}";
+    const result = JSON.parse(content);
     
     return {
       sql: result.sql || "",

@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
+import { analyzeQueryWithAI, generateComplexQueryResponse, generateSQLForQuery } from "./openai";
 
 /**
  * Parses a name into its components for advanced matching
@@ -104,6 +105,9 @@ const QUERY_TYPES = {
   
   // Combined queries (arbitrator + respondent)
   COMBINED_OUTCOME_ANALYSIS: "combined_outcome_analysis",
+  
+  // Complex queries requiring AI assistance
+  COMPLEX_ANALYSIS: "complex_analysis",
   
   // Unknown query
   UNKNOWN: "unknown",
