@@ -1292,6 +1292,15 @@ async function executeQueryByType(
         };
       }
         
+      case QUERY_TYPES.COMPLEX_ANALYSIS: {
+        // This is a placeholder for complex queries that will be handled by OpenAI
+        // The actual processing happens in processNaturalLanguageQuery
+        return {
+          data: null,
+          message: "This query requires advanced analysis. Processing with AI...",
+        };
+      }
+      
       default:
         return {
           data: null,
@@ -1317,16 +1326,121 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
   queryType: string;
 }> {
   try {
-    // First, analyze the query to determine its type and extract parameters
-    const analysis = await analyzeQuery(query);
+    console.log("Processing natural language query:", query);
     
-    // Then execute the appropriate query based on the analysis
-    const result = await executeQueryByType(analysis.type, analysis.parameters);
+    // First, try our structured pattern matching
+    const patternAnalysis = await analyzeQuery(query);
+    
+    // If we couldn't categorize the query or its type is unknown, try AI-powered analysis
+    if (patternAnalysis.type === QUERY_TYPES.UNKNOWN) {
+      console.log("Standard pattern analysis failed, trying AI analysis");
+      
+      // Use OpenAI to analyze the query
+      const aiAnalysis = await analyzeQueryWithAI(query);
+      console.log("AI query analysis result:", aiAnalysis);
+      
+      // If AI analysis is confident (threshold of 0.7), use its results
+      if (aiAnalysis.confidence >= 0.7) {
+        // Map the AI intent to our query types
+        let queryType = QUERY_TYPES.UNKNOWN;
+        
+        // Convert AI intent to our query type format if possible
+        switch (aiAnalysis.intent.toUpperCase()) {
+          case "ARBITRATOR_CASE_COUNT":
+            queryType = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
+            break;
+          case "ARBITRATOR_OUTCOME_ANALYSIS":
+            queryType = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+            break;
+          case "ARBITRATOR_AVERAGE_AWARD":
+            queryType = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
+            break;
+          case "ARBITRATOR_CASE_LISTING":
+            queryType = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
+            break;
+          case "RESPONDENT_CASE_COUNT":
+            queryType = QUERY_TYPES.RESPONDENT_CASE_COUNT;
+            break;
+          case "RESPONDENT_OUTCOME_ANALYSIS":
+            queryType = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+            break;
+          case "COMBINED_OUTCOME_ANALYSIS":
+            queryType = QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
+            break;
+          case "COMPLEX_ANALYSIS":
+            queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
+            break;
+          default:
+            queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
+        }
+        
+        // If we identified a standard query type, use our existing infrastructure
+        if (queryType !== QUERY_TYPES.COMPLEX_ANALYSIS) {
+          const parameters: Record<string, string | null> = {
+            arbitratorName: aiAnalysis.arbitratorName || null,
+            respondentName: aiAnalysis.respondentName || null,
+            disposition: aiAnalysis.disposition || null,
+            caseType: aiAnalysis.caseType || null,
+          };
+          
+          console.log("Using AI analysis with standard query type:", queryType);
+          const result = await executeQueryByType(queryType, parameters);
+          
+          return {
+            answer: result.message,
+            data: result.data,
+            queryType,
+          };
+        } else {
+          // This is a complex query that requires custom SQL or processing
+          console.log("Using AI for complex query analysis");
+          
+          try {
+            // Generate SQL for the query
+            const sqlGen = await generateSQLForQuery(query);
+            console.log("Generated SQL:", sqlGen.sql);
+            
+            // If SQL was successfully generated, execute it
+            if (sqlGen.sql) {
+              const queryResults = await db.execute(sql.raw(sqlGen.sql));
+              
+              // Use AI to generate a natural language response based on the results
+              const aiResponse = await generateComplexQueryResponse(query, queryResults);
+              
+              return {
+                answer: aiResponse,
+                data: queryResults,
+                queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
+              };
+            }
+            
+            return {
+              answer: "I couldn't generate a query for your question. Please try a more specific question.",
+              data: null,
+              queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
+            };
+          } catch (sqlError) {
+            console.error("Error executing AI-generated SQL:", sqlError);
+            
+            // Fallback to a generic AI response when SQL execution fails
+            return {
+              answer: "I understood your question but couldn't retrieve the data. Please try a different question.",
+              data: null,
+              queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
+            };
+          }
+        }
+      }
+    }
+    
+    // If we get here, use the original pattern matching results
+    console.log("Using standard pattern analysis");
+    const result = await executeQueryByType(patternAnalysis.type, patternAnalysis.parameters);
     
     return {
       answer: result.message,
       data: result.data,
-      queryType: analysis.type,
+      queryType: patternAnalysis.type,
     };
   } catch (error) {
     console.error("Error processing natural language query:", error);

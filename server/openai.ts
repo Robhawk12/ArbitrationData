@@ -10,11 +10,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  */
 export async function analyzeQueryWithAI(query: string): Promise<{
   intent: string;
-  arbitratorName?: string | null;
-  respondentName?: string | null;
-  disposition?: string | null;
-  caseType?: string | null;
-  timeframe?: string | null;
+  arbitratorName: string | null;
+  respondentName: string | null;
+  disposition: string | null;
+  caseType: string | null;
+  timeframe: string | null;
   confidence: number;
 }> {
   try {
