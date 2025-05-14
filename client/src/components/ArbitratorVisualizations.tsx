@@ -81,10 +81,17 @@ export default function ArbitratorVisualizations() {
     return `${parts[0][0]}. ${parts[parts.length - 1]}`;
   };
   
-  // Prepare data for display - make sure we filter out nulls as requested
+  // Prepare data for display - make sure we filter out nulls and NA values as requested
   const caseRankingData = Array.isArray(rankingsByCases) 
     ? rankingsByCases
-        .filter((item) => item.arbitratorName && item.caseCount)
+        .filter((item) => 
+          item.arbitratorName && 
+          item.caseCount && 
+          item.arbitratorName !== 'NA' && 
+          item.arbitratorName.toUpperCase() !== 'NA' && 
+          item.arbitratorName !== 'N/A' && 
+          item.arbitratorName !== 'Not Available'
+        )
         .map((item, index) => ({
           ...item,
           arbitratorDisplayName: formatArbitratorName(item.arbitratorName),
@@ -97,7 +104,11 @@ export default function ArbitratorVisualizations() {
         .filter((item) => 
           item.arbitratorName && 
           item.averageAward && 
-          !isNaN(Number(item.averageAward))
+          !isNaN(Number(item.averageAward)) &&
+          item.arbitratorName !== 'NA' && 
+          item.arbitratorName.toUpperCase() !== 'NA' && 
+          item.arbitratorName !== 'N/A' && 
+          item.arbitratorName !== 'Not Available'
         )
         .map((item, index) => ({
           ...item,
