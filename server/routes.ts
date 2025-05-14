@@ -622,17 +622,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SQL query to get rankings
       const query = `
         SELECT 
-          "arbitrator_name" as "arbitratorName", 
+          arbitrator_name as "arbitratorName", 
           COUNT(*) as "caseCount"
         FROM 
-          "arbitration_cases"
+          arbitration_cases
         WHERE 
-          "arbitrator_name" IS NOT NULL
-          AND ("arbitrator_name" != 'NA' AND UPPER("arbitrator_name") != 'NA' AND "arbitrator_name" != 'N/A' AND "arbitrator_name" != 'Not Available')
-          AND "disposition" ILIKE '%award%'
-          ${caseType ? `AND "case_type" = $1` : ''}
+          arbitrator_name IS NOT NULL
+          AND (arbitrator_name != 'NA' AND UPPER(arbitrator_name) != 'NA' AND arbitrator_name != 'N/A' AND arbitrator_name != 'Not Available')
+          AND disposition ILIKE '%award%'
+          ${caseType ? `AND case_type = $1` : ''}
         GROUP BY 
-          "arbitrator_name" 
+          arbitrator_name 
         ORDER BY 
           "caseCount" DESC
         LIMIT $${caseType ? '2' : '1'}
@@ -659,23 +659,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SQL query to get rankings - filter out null award amounts and use numeric comparisons
       const query = `
         SELECT 
-          "arbitrator_name" as "arbitratorName", 
+          arbitrator_name as "arbitratorName", 
           COUNT(*) as "caseCount",
-          AVG(CAST("award_amount" AS FLOAT)) as "averageAward",
-          SUM(CAST("award_amount" AS FLOAT)) as "totalAwards",
-          MAX(CAST("award_amount" AS FLOAT)) as "maxAward"
+          AVG(CAST(award_amount AS FLOAT)) as "averageAward",
+          SUM(CAST(award_amount AS FLOAT)) as "totalAwards",
+          MAX(CAST(award_amount AS FLOAT)) as "maxAward"
         FROM 
-          "arbitration_cases"
+          arbitration_cases
         WHERE 
-          "arbitrator_name" IS NOT NULL
-          AND ("arbitrator_name" != 'NA' AND UPPER("arbitrator_name") != 'NA' AND "arbitrator_name" != 'N/A' AND "arbitrator_name" != 'Not Available')
-          AND "award_amount" IS NOT NULL
-          AND "award_amount" != ''
-          AND "award_amount" ~ '^[0-9]+(\\.[0-9]+)?$'
-          AND "disposition" ILIKE '%award%'
-          ${caseType ? `AND "case_type" = $1` : ''}
+          arbitrator_name IS NOT NULL
+          AND (arbitrator_name != 'NA' AND UPPER(arbitrator_name) != 'NA' AND arbitrator_name != 'N/A' AND arbitrator_name != 'Not Available')
+          AND award_amount IS NOT NULL
+          AND award_amount != ''
+          AND award_amount ~ '^[0-9]+(\\.[0-9]+)?$'
+          AND disposition ILIKE '%award%'
+          ${caseType ? `AND case_type = $1` : ''}
         GROUP BY 
-          "arbitrator_name" 
+          arbitrator_name 
         HAVING 
           COUNT(*) > 4
         ORDER BY 
@@ -699,17 +699,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await pool.query(`
         SELECT 
-          "case_type" as "caseType", 
+          case_type as "caseType", 
           COUNT(*) as "count"
         FROM 
-          "arbitration_cases"
+          arbitration_cases
         WHERE 
-          "case_type" IS NOT NULL
-          AND "disposition" ILIKE '%award%'
-          AND "arbitrator_name" IS NOT NULL
-          AND ("arbitrator_name" != 'NA' AND UPPER("arbitrator_name") != 'NA' AND "arbitrator_name" != 'N/A' AND "arbitrator_name" != 'Not Available')
+          case_type IS NOT NULL
+          AND disposition ILIKE '%award%'
+          AND arbitrator_name IS NOT NULL
+          AND (arbitrator_name != 'NA' AND UPPER(arbitrator_name) != 'NA' AND arbitrator_name != 'N/A' AND arbitrator_name != 'Not Available')
         GROUP BY 
-          "case_type" 
+          case_type 
         ORDER BY 
           "count" DESC
       `);
