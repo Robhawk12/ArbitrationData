@@ -1295,6 +1295,79 @@ async function executeQueryByType(
         };
       }
         
+      case QUERY_TYPES.ARBITRATOR_RANKING: {
+        // This query type doesn't require a specific arbitrator name
+        // It's used for queries like "Which arbitrators tend to award higher amounts?"
+        try {
+          // Get top arbitrators by average award amount
+          const topArbitrators = await db
+            .select({
+              arbitratorName: arbitrationCases.arbitratorName,
+              avgAward: sql`AVG(
+                CASE 
+                  WHEN award_amount ~ '^\\$?[0-9,.]+$' 
+                  THEN CAST(REPLACE(REPLACE(REPLACE(award_amount, '$', ''), ',', ''), ' ', '') AS NUMERIC) 
+                  ELSE 0 
+                END
+              )`.as('avg_award'),
+              caseCount: sql`COUNT(*)`.as('case_count'),
+              awardCount: sql`COUNT(CASE WHEN award_amount IS NOT NULL AND award_amount != '' THEN 1 END)`.as('award_count')
+            })
+            .from(arbitrationCases)
+            .where(
+              sql`arbitrator_name IS NOT NULL 
+                  AND award_amount IS NOT NULL 
+                  AND award_amount != '' 
+                  AND award_amount ~ '^\\$?[0-9,.]+$'`
+            )
+            // If case type is specified (e.g., "consumer"), filter by it
+            .where(caseType ? sql`LOWER(case_type) LIKE LOWER(${'%' + caseType + '%'})` : sql`1=1`)
+            .groupBy(arbitrationCases.arbitratorName)
+            // Only include arbitrators with a minimum number of cases with awards
+            .having(sql`COUNT(CASE WHEN award_amount IS NOT NULL AND award_amount != '' THEN 1 END) >= 5`)
+            .orderBy(sql`avg_award DESC`)
+            .limit(10)
+            .execute();
+          
+          if (topArbitrators.length === 0) {
+            return {
+              data: null,
+              message: "I couldn't find any arbitrators with sufficient award data to analyze.",
+            };
+          }
+          
+          // Format the results into a readable message
+          const formattedResults = topArbitrators.map(row => ({
+            arbitratorName: row.arbitratorName,
+            averageAward: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(row.avgAward),
+            caseCount: row.caseCount,
+            awardCount: row.awardCount
+          }));
+          
+          // Create a user-friendly message
+          let message = "Here are the arbitrators with the highest average award amounts";
+          if (caseType) {
+            message += ` in ${caseType} cases`;
+          }
+          message += ":\n\n";
+          
+          formattedResults.forEach((arb, index) => {
+            message += `${index + 1}. ${arb.arbitratorName}: ${arb.averageAward} average award (${arb.awardCount} awards out of ${arb.caseCount} cases)\n`;
+          });
+          
+          return {
+            data: formattedResults,
+            message: message,
+          };
+        } catch (error) {
+          console.error("Error in arbitrator ranking query:", error);
+          return {
+            data: null,
+            message: "An error occurred while analyzing arbitrator award amounts. Please try again.",
+          };
+        }
+      }
+        
       case QUERY_TYPES.COMPLEX_ANALYSIS: {
         // This is a placeholder for complex queries that will be handled by OpenAI
         // The actual processing happens in processNaturalLanguageQuery
