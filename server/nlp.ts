@@ -614,6 +614,85 @@ async function analyzeQuery(query: string): Promise<{
 }
 
 /**
+ * Maps an AI intent string to our query type constants
+ * @param intent The AI intent from OpenAI
+ * @returns The corresponding query type
+ */
+function mapAiIntentToQueryType(intent: string): string {
+  // Convert the intent to uppercase for consistent comparison
+  const upperIntent = intent.toUpperCase();
+  
+  switch (upperIntent) {
+    case "ARBITRATOR_CASE_COUNT":
+      return QUERY_TYPES.ARBITRATOR_CASE_COUNT;
+    case "ARBITRATOR_OUTCOME_ANALYSIS":
+      return QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
+    case "ARBITRATOR_AVERAGE_AWARD":
+      return QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
+    case "ARBITRATOR_CASE_LISTING":
+      return QUERY_TYPES.ARBITRATOR_CASE_LISTING;
+    case "RESPONDENT_CASE_COUNT":
+      return QUERY_TYPES.RESPONDENT_CASE_COUNT;
+    case "RESPONDENT_OUTCOME_ANALYSIS":
+      return QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
+    case "COMBINED_OUTCOME_ANALYSIS":
+      return QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
+    case "ARBITRATOR_COMPARISON":
+      return QUERY_TYPES.ARBITRATOR_COMPARISON;
+    case "COMPLEX_ANALYSIS":
+      return QUERY_TYPES.COMPLEX_ANALYSIS;
+    default:
+      return QUERY_TYPES.COMPLEX_ANALYSIS;
+  }
+}
+
+/**
+ * Handle a complex query using AI analysis
+ * @param query The original query text
+ * @returns Formatted response with answer, data and query type
+ */
+async function handleComplexQuery(query: string): Promise<{
+  answer: string;
+  data: any;
+  queryType: string;
+}> {
+  try {
+    console.log("Handling complex query with AI:", query);
+    
+    // Generate SQL for the query
+    const sqlGen = await generateSQLForQuery(query);
+    console.log("Generated SQL:", sqlGen.sql);
+    
+    // If SQL was successfully generated, execute it
+    if (sqlGen.sql) {
+      const queryResults = await db.execute(sql.raw(sqlGen.sql));
+      
+      // Use AI to generate a natural language response based on the results
+      const aiResponse = await generateComplexQueryResponse(query, queryResults);
+      
+      return {
+        answer: aiResponse,
+        data: queryResults,
+        queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
+      };
+    }
+    
+    return {
+      answer: `I understand you're asking about a comparison, but I couldn't generate a proper query. Please try phrasing your question differently.`,
+      data: null,
+      queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+    };
+  } catch (error) {
+    console.error("Error in complex query handling:", error);
+    return {
+      answer: "I understood your complex comparison question, but encountered an error while analyzing it. Please try again with a simpler query.",
+      data: null,
+      queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+    };
+  }
+}
+
+/**
  * Executes a database query based on the analyzed query type and parameters
  * @param queryType The type of query to execute
  * @param parameters Parameters extracted from the natural language query
@@ -1331,7 +1410,58 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
   try {
     console.log("Processing natural language query:", query);
     
-    // First, try our structured pattern matching
+    // For complex queries that might involve comparisons, prioritize AI analysis first
+    // This avoids the pattern-matching system which struggles with arbitrator comparisons
+    if (query.toLowerCase().includes("compar") || 
+        query.toLowerCase().includes("between") ||
+        query.toLowerCase().includes("vs") ||
+        query.toLowerCase().includes("versus") ||
+        query.toLowerCase().includes("which")) {
+      console.log("Complex comparison query detected, prioritizing AI analysis");
+      
+      try {
+        // Try AI analysis first
+        const aiAnalysis = await analyzeQueryWithAI(query);
+        console.log("AI query analysis result:", aiAnalysis);
+        
+        // If AI analysis is confident, use it
+        if (aiAnalysis.confidence >= 0.7) {
+          // Map the AI intent
+          let queryType = mapAiIntentToQueryType(aiAnalysis.intent);
+          
+          // Special handling for comparison queries
+          if (aiAnalysis.intent.toUpperCase() === "ARBITRATOR_COMPARISON") {
+            // For comparison queries, use the complex analysis pathway
+            console.log("Using AI for arbitrator comparison analysis");
+            return await handleComplexQuery(query);
+          }
+          
+          // If we identified a standard query type, use our existing infrastructure
+          if (queryType !== QUERY_TYPES.COMPLEX_ANALYSIS) {
+            const parameters: Record<string, string | null> = {
+              arbitratorName: aiAnalysis.arbitratorName || null,
+              respondentName: aiAnalysis.respondentName || null,
+              disposition: aiAnalysis.disposition || null,
+              caseType: aiAnalysis.caseType || null,
+            };
+            
+            console.log("Using AI analysis with standard query type:", queryType);
+            const result = await executeQueryByType(queryType, parameters);
+            
+            return {
+              answer: result.message,
+              data: result.data,
+              queryType,
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Error in prioritized AI analysis:", error);
+        // If AI analysis fails, we'll continue with pattern matching
+      }
+    }
+    
+    // If AI analysis wasn't used or failed, try structured pattern matching
     const patternAnalysis = await analyzeQuery(query);
     
     // If we couldn't categorize the query or its type is unknown, try AI-powered analysis
@@ -1370,6 +1500,9 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
               break;
             case "COMBINED_OUTCOME_ANALYSIS":
               queryType = QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
+              break;
+            case "ARBITRATOR_COMPARISON":
+              queryType = QUERY_TYPES.ARBITRATOR_COMPARISON;
               break;
             case "COMPLEX_ANALYSIS":
               queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
