@@ -31,7 +31,7 @@ export default function ArbitratorVisualizations() {
   const [caseTypes, setCaseTypes] = useState<CaseType[]>([]);
   
   // Fetch case types
-  const { data: caseTypeData } = useQuery({
+  const { data: caseTypeData } = useQuery<CaseType[]>({
     queryKey: ['/api/case-types'],
   });
   
@@ -43,23 +43,17 @@ export default function ArbitratorVisualizations() {
   }, [caseTypeData]);
   
   // Fetch arbitrator rankings by case count
+  const casesUrl = `/api/arbitrator-rankings/cases${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
   const { data: rankingsByCases, isLoading: isLoadingRankings } = useQuery({
-    queryKey: ['/api/arbitrator-rankings/cases', selectedCaseType],
-    queryFn: async () => {
-      const url = `/api/arbitrator-rankings/cases${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
-      const response = await apiRequest(url);
-      return response;
-    }
+    queryKey: [casesUrl, selectedCaseType],
+    queryFn: () => apiRequest<ArbitratorRanking[]>(casesUrl),
   });
   
   // Fetch arbitrator rankings by award amounts
+  const awardsUrl = `/api/arbitrator-rankings/awards${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
   const { data: rankingsByAwards, isLoading: isLoadingAwards } = useQuery({
-    queryKey: ['/api/arbitrator-rankings/awards', selectedCaseType],
-    queryFn: async () => {
-      const url = `/api/arbitrator-rankings/awards${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
-      const response = await apiRequest(url);
-      return response;
-    }
+    queryKey: [awardsUrl, selectedCaseType],
+    queryFn: () => apiRequest<ArbitratorAwardRanking[]>(awardsUrl),
   });
   
   // Colors for charts

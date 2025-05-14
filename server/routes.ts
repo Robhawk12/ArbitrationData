@@ -695,7 +695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await pool.query(`
         SELECT 
-          "caseType" as "caseType", 
+          "caseType", 
           COUNT(*) as "count"
         FROM 
           "arbitration_cases"
