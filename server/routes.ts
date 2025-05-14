@@ -695,14 +695,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await pool.query(`
         SELECT 
-          "caseType", 
+          "case_type" as "caseType", 
           COUNT(*) as "count"
         FROM 
           "arbitration_cases"
         WHERE 
-          "caseType" IS NOT NULL
+          "case_type" IS NOT NULL
         GROUP BY 
-          "caseType" 
+          "case_type" 
         ORDER BY 
           "count" DESC
       `);
