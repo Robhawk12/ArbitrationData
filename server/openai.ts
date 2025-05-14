@@ -55,7 +55,18 @@ Identify the intent and extract relevant entities from the query. Possible inten
 - UNKNOWN: Query that doesn't fall into any of the above categories
 
 When extracting names, handle variations (Hon., Dr., etc.) and standardize to improve matching.
-Provide a confidence score (0-1) indicating your certainty of the analysis.`
+Provide a confidence score (0-1) indicating your certainty of the analysis.
+
+Return your response as a JSON object with the following structure:
+{
+  "intent": "INTENT_TYPE",
+  "arbitratorName": "Name or null",
+  "respondentName": "Name or null",
+  "disposition": "Type or null",
+  "caseType": "Type or null",
+  "timeframe": "Period or null",
+  "confidence": 0.8
+}`
         },
         {
           role: "user",
@@ -180,9 +191,15 @@ Notes on data:
 - Some text fields like claim_amount and award_amount may contain monetary values with currency symbols
 - For name matching, consider variations in formatting (with/without middle initials)
 
-Generate valid PostgreSQL that answers the user's query. Return the SQL and a brief explanation of what the query does.
+Generate valid PostgreSQL that answers the user's query. 
 For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern.
-Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.`
+Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.
+
+Return your response as a JSON object with this structure:
+{
+  "sql": "Your SQL query here",
+  "explanation": "Brief explanation of what the query does"
+}`
         },
         {
           role: "user",
