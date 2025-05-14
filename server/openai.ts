@@ -51,6 +51,7 @@ Identify the intent and extract relevant entities from the query. Possible inten
 - RESPONDENT_CASE_COUNT: Query about how many cases involve a specific respondent
 - RESPONDENT_OUTCOME_ANALYSIS: Query about outcomes of cases involving a specific respondent
 - COMBINED_OUTCOME_ANALYSIS: Query about outcomes of cases with both a specific arbitrator and respondent
+- ARBITRATOR_COMPARISON: Query comparing multiple arbitrators (e.g., "compare Smith and Johnson")
 - COMPLEX_ANALYSIS: Query requiring complex analysis beyond simple database queries
 - UNKNOWN: Query that doesn't fall into any of the above categories
 

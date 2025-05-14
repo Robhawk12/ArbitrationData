@@ -106,6 +106,9 @@ const QUERY_TYPES = {
   // Combined queries (arbitrator + respondent)
   COMBINED_OUTCOME_ANALYSIS: "combined_outcome_analysis",
   
+  // Comparison queries (multiple arbitrators)
+  ARBITRATOR_COMPARISON: "arbitrator_comparison",
+  
   // Complex queries requiring AI assistance
   COMPLEX_ANALYSIS: "complex_analysis",
   
