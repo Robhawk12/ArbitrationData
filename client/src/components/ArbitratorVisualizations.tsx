@@ -141,9 +141,9 @@ export default function ArbitratorVisualizations() {
         {/* Case Count Rankings */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Arbitrators by Case Count</CardTitle>
+            <CardTitle>Most Awarded Cases by Arbitrator</CardTitle>
             <CardDescription>
-              Arbitrators ranked by number of cases handled
+              Arbitrators ranked by number of awarded cases handled
               {selectedCaseType && ` (${selectedCaseType} cases)`}
             </CardDescription>
           </CardHeader>
@@ -193,9 +193,9 @@ export default function ArbitratorVisualizations() {
         {/* Award Amount Rankings */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Arbitrators by Average Award</CardTitle>
+            <CardTitle>Most Awarded Cases by Amount</CardTitle>
             <CardDescription>
-              Arbitrators ranked by average award amount
+              Arbitrators ranked by average award amount in awarded cases
               {selectedCaseType && ` (${selectedCaseType} cases)`}
             </CardDescription>
           </CardHeader>

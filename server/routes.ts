@@ -628,6 +628,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "arbitration_cases"
         WHERE 
           "arbitrator_name" IS NOT NULL
+          AND "arbitrator_name" != 'NA'
+          AND "disposition" ILIKE '%award%'
           ${caseType ? `AND "case_type" = $1` : ''}
         GROUP BY 
           "arbitrator_name" 
@@ -666,9 +668,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "arbitration_cases"
         WHERE 
           "arbitrator_name" IS NOT NULL
+          AND "arbitrator_name" != 'NA'
           AND "award_amount" IS NOT NULL
           AND "award_amount" != ''
           AND "award_amount" ~ '^[0-9]+(\\.[0-9]+)?$'
+          AND "disposition" ILIKE '%award%'
           ${caseType ? `AND "case_type" = $1` : ''}
         GROUP BY 
           "arbitrator_name" 
@@ -701,6 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "arbitration_cases"
         WHERE 
           "case_type" IS NOT NULL
+          AND "disposition" ILIKE '%award%'
         GROUP BY 
           "case_type" 
         ORDER BY 
