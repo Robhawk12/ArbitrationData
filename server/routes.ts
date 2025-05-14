@@ -612,6 +612,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get arbitrator rankings by case count (most active arbitrators)
+  app.get("/api/arbitrator-rankings/cases", async (req: Request, res: Response) => {
+    try {
+      // Get query parameters for filtering
+      const caseType = req.query.caseType as string | undefined;
+      const limit = parseInt(req.query.limit as string || "10");
+      
+      // SQL query to get rankings
+      const query = `
+        SELECT 
+          "arbitratorName", 
+          COUNT(*) as "caseCount"
+        FROM 
+          "arbitration_cases"
+        WHERE 
+          "arbitratorName" IS NOT NULL
+          ${caseType ? `AND "caseType" = $1` : ''}
+        GROUP BY 
+          "arbitratorName" 
+        ORDER BY 
+          "caseCount" DESC
+        LIMIT $${caseType ? '2' : '1'}
+      `;
+      
+      const result = caseType 
+        ? await db.execute(query, [caseType, limit]) 
+        : await db.execute(query, [limit]);
+      
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ 
+        error: `Failed to get arbitrator rankings: ${(error as Error).message}`
+      });
+    }
+  });
+
+  // Get arbitrator rankings by award amounts
+  app.get("/api/arbitrator-rankings/awards", async (req: Request, res: Response) => {
+    try {
+      // Get query parameters for filtering
+      const caseType = req.query.caseType as string | undefined;
+      const limit = parseInt(req.query.limit as string || "10");
+      
+      // SQL query to get rankings - filter out null award amounts and use numeric comparisons
+      const result = await db.execute(`
+        SELECT 
+          "arbitratorName", 
+          COUNT(*) as "caseCount",
+          AVG(CAST("awardAmount" AS FLOAT)) as "averageAward",
+          SUM(CAST("awardAmount" AS FLOAT)) as "totalAwards",
+          MAX(CAST("awardAmount" AS FLOAT)) as "maxAward"
+        FROM 
+          "arbitration_cases"
+        WHERE 
+          "arbitratorName" IS NOT NULL
+          AND "awardAmount" IS NOT NULL
+          AND "awardAmount" != ''
+          AND "awardAmount" ~ '^[0-9]+(\\.[0-9]+)?$'
+          ${caseType ? `AND "caseType" = $1` : ''}
+        GROUP BY 
+          "arbitratorName" 
+        HAVING 
+          COUNT(*) > 4
+        ORDER BY 
+          "averageAward" DESC
+        LIMIT $${caseType ? '2' : '1'}
+      `, caseType ? [caseType, limit] : [limit]);
+      
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ 
+        error: `Failed to get arbitrator award rankings: ${(error as Error).message}`
+      });
+    }
+  });
+
+  // Get case type distribution 
+  app.get("/api/case-types", async (_req: Request, res: Response) => {
+    try {
+      const result = await db.execute(`
+        SELECT 
+          "caseType", 
+          COUNT(*) as "count"
+        FROM 
+          "arbitration_cases"
+        WHERE 
+          "caseType" IS NOT NULL
+        GROUP BY 
+          "caseType" 
+        ORDER BY 
+          "count" DESC
+      `);
+      
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ 
+        error: `Failed to get case types: ${(error as Error).message}`
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

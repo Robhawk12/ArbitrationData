@@ -24,6 +24,12 @@ export default function Navigation({ children }: NavigationProps) {
             Query Arbitration Data
           </TabsTrigger>
           <TabsTrigger
+            value="visualization"
+            className="text-lg px-5 py-3 data-[state=active]:bg-[#e8f4ee] data-[state=active]:text-[#217346] data-[state=active]:border-b-2 data-[state=active]:border-[#217346]"
+          >
+            Visualizations
+          </TabsTrigger>
+          <TabsTrigger
             value="ingestion"
             className="text-lg px-5 py-3 data-[state=active]:bg-[#e8f4ee] data-[state=active]:text-[#217346] data-[state=active]:border-b-2 data-[state=active]:border-[#217346]"
           >
