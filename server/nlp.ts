@@ -788,14 +788,23 @@ function extractArbitratorNamesFromQuery(query: string): string[] {
  */
 async function getArbitratorStats(name: string): Promise<any> {
   try {
-    // Simple query to get case count and win rate
+    // For common last names like Smith or Johnson, we need to be more specific
+    // to avoid catching unrelated names (like Smithson or Johnston)
+    const nameLower = name.toLowerCase();
+    
+    // Simple query to get case count and win rate with more precise matching
     const result = await db.execute(sql`
       SELECT 
         COUNT(*) as total_cases,
         COUNT(CASE WHEN disposition ILIKE '%win%' THEN 1 END) as wins,
         CAST(COUNT(CASE WHEN disposition ILIKE '%win%' THEN 1 END) AS FLOAT) / NULLIF(COUNT(*), 0) as win_rate
       FROM arbitration_cases
-      WHERE LOWER(arbitrator_name) LIKE ${`%${name.toLowerCase()}%`}
+      WHERE 
+        -- Look for exact last name match with word boundary
+        (LOWER(arbitrator_name) ~ ${`\\m${nameLower}\\M`}) OR 
+        -- Look for full name matches (first + last)
+        (LOWER(arbitrator_name) LIKE ${`% ${nameLower}`}) OR
+        (LOWER(arbitrator_name) LIKE ${`${nameLower} %`})
     `);
     
     if (Array.isArray(result) && result.length > 0 && result[0].total_cases > 0) {
