@@ -622,15 +622,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SQL query to get rankings
       const query = `
         SELECT 
-          "arbitratorName", 
+          "arbitrator_name" as "arbitratorName", 
           COUNT(*) as "caseCount"
         FROM 
           "arbitration_cases"
         WHERE 
-          "arbitratorName" IS NOT NULL
-          ${caseType ? `AND "caseType" = $1` : ''}
+          "arbitrator_name" IS NOT NULL
+          ${caseType ? `AND "case_type" = $1` : ''}
         GROUP BY 
-          "arbitratorName" 
+          "arbitrator_name" 
         ORDER BY 
           "caseCount" DESC
         LIMIT $${caseType ? '2' : '1'}
@@ -657,21 +657,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SQL query to get rankings - filter out null award amounts and use numeric comparisons
       const query = `
         SELECT 
-          "arbitratorName", 
+          "arbitrator_name" as "arbitratorName", 
           COUNT(*) as "caseCount",
-          AVG(CAST("awardAmount" AS FLOAT)) as "averageAward",
-          SUM(CAST("awardAmount" AS FLOAT)) as "totalAwards",
-          MAX(CAST("awardAmount" AS FLOAT)) as "maxAward"
+          AVG(CAST("award_amount" AS FLOAT)) as "averageAward",
+          SUM(CAST("award_amount" AS FLOAT)) as "totalAwards",
+          MAX(CAST("award_amount" AS FLOAT)) as "maxAward"
         FROM 
           "arbitration_cases"
         WHERE 
-          "arbitratorName" IS NOT NULL
-          AND "awardAmount" IS NOT NULL
-          AND "awardAmount" != ''
-          AND "awardAmount" ~ '^[0-9]+(\\.[0-9]+)?$'
-          ${caseType ? `AND "caseType" = $1` : ''}
+          "arbitrator_name" IS NOT NULL
+          AND "award_amount" IS NOT NULL
+          AND "award_amount" != ''
+          AND "award_amount" ~ '^[0-9]+(\\.[0-9]+)?$'
+          ${caseType ? `AND "case_type" = $1` : ''}
         GROUP BY 
-          "arbitratorName" 
+          "arbitrator_name" 
         HAVING 
           COUNT(*) > 4
         ORDER BY 
