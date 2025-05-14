@@ -83,6 +83,11 @@ Provide a confidence score (0-1) indicating your certainty of the analysis.`
     console.error("Error analyzing query with AI:", error);
     return {
       intent: "UNKNOWN",
+      arbitratorName: null,
+      respondentName: null,
+      disposition: null,
+      caseType: null,
+      timeframe: null,
       confidence: 0
     };
   }

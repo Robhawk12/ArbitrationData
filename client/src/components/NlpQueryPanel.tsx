@@ -10,6 +10,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [usingAI, setUsingAI] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +39,8 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       if (data && typeof data === 'object' && 'answer' in data) {
         setAnswer(data.answer as string);
+        // Check if this was an AI-processed query
+        setUsingAI(data.queryType === 'complex_analysis');
       } else {
         setError("Received an invalid response format from the server.");
       }
@@ -55,6 +58,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     { type: "Awards", query: "What is the average award amount given by Smith?" },
     { type: "Listing", query: "List the cases handled by Smith" },
     { type: "Company", query: "What are the outcomes for Bank of America as respondent?" },
+    { type: "Complex", query: "Compare the win rates for consumers between arbitrators Smith and Johnson" },
   ];
 
   const setExampleQuery = (exampleQuery: string) => {
@@ -94,8 +98,22 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
               <li>Be clear about what information you want (count, outcomes, awards, etc.)</li>
               <li>For common last names (like "Smith"), consider using full names</li>
             </ul>
-            <p className="text-neutral-600">
+            <p className="text-neutral-600 mb-3">
               The system will provide multiple matches if your query is ambiguous.
+            </p>
+            
+            <h3 className="font-medium text-[#217346] mb-2">AI-Enhanced Analysis</h3>
+            <p className="mb-2">
+              Complex questions that don't fit standard patterns will be analyzed with AI:
+            </p>
+            <ul className="list-disc pl-5 mb-3 space-y-1 text-neutral-700">
+              <li>Compare data across multiple arbitrators or companies</li>
+              <li>Ask about trends or patterns in the data</li>
+              <li>Request specialized calculations not available in standard queries</li>
+              <li>Questions requiring deeper understanding of legal context</li>
+            </ul>
+            <p className="text-neutral-600">
+              AI-enhanced answers will display an "AI Enhanced" badge.
             </p>
           </div>
         )}
@@ -163,7 +181,17 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       {answer && !error && (
         <div className="bg-[#e8f4ee] border border-[#b8dbca] p-4 rounded mt-4">
-          <h3 className="font-medium text-[#217346] mb-2">Answer:</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-medium text-[#217346]">Answer:</h3>
+            {usingAI && (
+              <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                AI Enhanced
+              </div>
+            )}
+          </div>
           <div className="whitespace-pre-line text-neutral-700">
             {answer}
           </div>
@@ -191,9 +219,16 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
             <p className="font-medium text-sm text-neutral-700">Case Listings</p>
             <p className="text-xs text-neutral-600">"List the cases handled by [arbitrator]"</p>
           </div>
-          <div className="bg-gray-50 p-2 rounded md:col-span-2">
+          <div className="bg-gray-50 p-2 rounded">
             <p className="font-medium text-sm text-neutral-700">Respondent Analysis</p>
             <p className="text-xs text-neutral-600">"What are the outcomes for [company] as respondent?"</p>
+          </div>
+          <div className="bg-gray-50 p-2 rounded md:col-span-2 border border-blue-100">
+            <div className="flex items-center">
+              <p className="font-medium text-sm text-blue-700">AI-Enhanced Queries</p>
+              <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Powered by AI</span>
+            </div>
+            <p className="text-xs text-blue-600">"Compare win rates between arbitrators Smith and Johnson" or "What's the trend in award amounts since 2018?"</p>
           </div>
         </div>
       </div>
