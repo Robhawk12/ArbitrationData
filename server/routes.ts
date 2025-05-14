@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { sql } from "drizzle-orm";
 import multer from "multer";
 import { read, utils } from "xlsx";
@@ -656,7 +656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = parseInt(req.query.limit as string || "10");
       
       // SQL query to get rankings - filter out null award amounts and use numeric comparisons
-      const result = await db.execute(`
+      const query = `
         SELECT 
           "arbitratorName", 
           COUNT(*) as "caseCount",
@@ -678,7 +678,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ORDER BY 
           "averageAward" DESC
         LIMIT $${caseType ? '2' : '1'}
-      `, caseType ? [caseType, limit] : [limit]);
+      `;
+      
+      const result = caseType 
+        ? await db.execute(query, [caseType, limit]) 
+        : await db.execute(query, [limit]);
       
       res.json(result.rows);
     } catch (error) {
