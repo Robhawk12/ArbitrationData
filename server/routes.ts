@@ -636,9 +636,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LIMIT $${caseType ? '2' : '1'}
       `;
       
-      const result = caseType 
-        ? await db.execute(query, [caseType, limit]) 
-        : await db.execute(query, [limit]);
+      const params = caseType ? [caseType, limit] : [limit];
+      const result = await pool.query(query, params);
       
       res.json(result.rows);
     } catch (error) {
@@ -680,9 +679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LIMIT $${caseType ? '2' : '1'}
       `;
       
-      const result = caseType 
-        ? await db.execute(query, [caseType, limit]) 
-        : await db.execute(query, [limit]);
+      const params = caseType ? [caseType, limit] : [limit];
+      const result = await pool.query(query, params);
       
       res.json(result.rows);
     } catch (error) {

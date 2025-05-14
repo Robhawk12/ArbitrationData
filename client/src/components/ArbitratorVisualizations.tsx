@@ -46,8 +46,9 @@ export default function ArbitratorVisualizations() {
   const { data: rankingsByCases, isLoading: isLoadingRankings } = useQuery({
     queryKey: ['/api/arbitrator-rankings/cases', selectedCaseType],
     queryFn: async () => {
-      const url = `/api/arbitrator-rankings/cases${selectedCaseType ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
-      return apiRequest(url);
+      const url = `/api/arbitrator-rankings/cases${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
+      const response = await apiRequest(url);
+      return response;
     }
   });
   
@@ -55,8 +56,9 @@ export default function ArbitratorVisualizations() {
   const { data: rankingsByAwards, isLoading: isLoadingAwards } = useQuery({
     queryKey: ['/api/arbitrator-rankings/awards', selectedCaseType],
     queryFn: async () => {
-      const url = `/api/arbitrator-rankings/awards${selectedCaseType ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
-      return apiRequest(url);
+      const url = `/api/arbitrator-rankings/awards${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
+      const response = await apiRequest(url);
+      return response;
     }
   });
   
