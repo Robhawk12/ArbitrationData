@@ -5,6 +5,7 @@ import DataTable from "@/components/DataTable";
 import ProcessingSummary from "@/components/ProcessingSummary";
 import NotificationSystem from "@/components/NotificationSystem";
 import NlpQueryPanel from "@/components/NlpQueryPanel";
+import ArbitratorVisualizations from "@/components/ArbitratorVisualizations";
 import Navigation from "@/components/Navigation";
 import { TabsContent } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
@@ -124,6 +125,15 @@ export default function Home() {
                   refreshTrigger={tableRefreshTrigger}
                   onSearch={handleSearch}
                 />
+              </div>
+            </div>
+          </TabsContent>
+          
+          {/* Visualization Tab */}
+          <TabsContent value="visualization" className="mt-4">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="w-full">
+                <ArbitratorVisualizations />
               </div>
             </div>
           </TabsContent>

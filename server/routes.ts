@@ -695,9 +695,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get case type distribution 
   app.get("/api/case-types", async (_req: Request, res: Response) => {
     try {
-      const result = await db.execute(`
+      const result = await pool.query(`
         SELECT 
-          "caseType", 
+          "caseType" as "caseType", 
           COUNT(*) as "count"
         FROM 
           "arbitration_cases"
