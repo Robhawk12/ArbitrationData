@@ -59,6 +59,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     { type: "Listing", query: "List the cases handled by Smith" },
     { type: "Company", query: "What are the outcomes for Bank of America as respondent?" },
     { type: "Complex", query: "Compare the win rates for consumers between arbitrators Smith and Johnson" },
+    { type: "Complex", query: "Which arbitrators tend to award higher amounts in consumer cases?" },
   ];
 
   const setExampleQuery = (exampleQuery: string) => {

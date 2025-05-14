@@ -1455,7 +1455,7 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
       data: result.data,
       queryType: patternAnalysis.type,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing natural language query:", error);
     return {
       answer: "Sorry, I encountered an error while processing your question. Please try again.",
