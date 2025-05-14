@@ -51,17 +51,10 @@ Identify the intent and extract relevant entities from the query. Possible inten
 - RESPONDENT_CASE_COUNT: Query about how many cases involve a specific respondent
 - RESPONDENT_OUTCOME_ANALYSIS: Query about outcomes of cases involving a specific respondent
 - COMBINED_OUTCOME_ANALYSIS: Query about outcomes of cases with both a specific arbitrator and respondent
-- ARBITRATOR_COMPARISON: Query comparing multiple arbitrators (e.g., "compare Smith and Johnson")
 - COMPLEX_ANALYSIS: Query requiring complex analysis beyond simple database queries
 - UNKNOWN: Query that doesn't fall into any of the above categories
 
-When extracting names, follow these guidelines:
-1. Handle variations (Hon., Dr., etc.) and standardize to improve matching
-2. For common last names like "Smith" or "Johnson", assume they refer to a general category of arbitrators
-3. When comparing multiple arbitrators, clearly identify them in the arbitratorName field as a comma-separated list
-4. For win rate analysis, focus on consumer outcomes and disposition field values
-5. Be aware that some names may be partial matches (e.g., "Smith" might match "Smithson")
-
+When extracting names, handle variations (Hon., Dr., etc.) and standardize to improve matching.
 Provide a confidence score (0-1) indicating your certainty of the analysis.
 
 Return your response as a JSON object with the following structure:
@@ -198,16 +191,9 @@ Notes on data:
 - Some text fields like claim_amount and award_amount may contain monetary values with currency symbols
 - For name matching, consider variations in formatting (with/without middle initials)
 
-Generate valid PostgreSQL that answers the user's query. Follow these rules:
-1. For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern
-2. Only write SELECT queries - no INSERT, UPDATE, or DELETE operations
-3. Ensure that any column in the SELECT clause that is not in an aggregate function is included in the GROUP BY clause
-4. For arbitrator name matching with common names like Smith or Johnson, use word boundary regex: WHERE LOWER(arbitrator_name) ~ '\\msmith\\M'
-5. When comparing multiple arbitrators, use pattern matching that avoids partial matches: (arbitrator_name ~ '\\msmith\\M' OR arbitrator_name LIKE '% smith')
-6. Keep queries simple and focused on exactly what was asked
-7. Use NULLIF to avoid division by zero errors
-8. If looking for consumer cases, use case_type = 'consumer' or case_type ILIKE '%consumer%'
-9. Prefer standard PostgreSQL syntax that works with all versions
+Generate valid PostgreSQL that answers the user's query. 
+For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern.
+Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.
 
 Return your response as a JSON object with this structure:
 {
