@@ -665,16 +665,66 @@ async function handleComplexQuery(query: string): Promise<{
     
     // If SQL was successfully generated, execute it
     if (sqlGen.sql) {
-      const queryResults = await db.execute(sql.raw(sqlGen.sql));
-      
-      // Use AI to generate a natural language response based on the results
-      const aiResponse = await generateComplexQueryResponse(query, queryResults);
-      
-      return {
-        answer: aiResponse,
-        data: queryResults,
-        queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
-      };
+      try {
+        const queryResults = await db.execute(sql.raw(sqlGen.sql));
+        
+        // Check if we got meaningful results
+        if (Array.isArray(queryResults) && queryResults.length > 0) {
+          // Use AI to generate a natural language response based on the results
+          const aiResponse = await generateComplexQueryResponse(query, queryResults);
+          
+          return {
+            answer: aiResponse,
+            data: queryResults,
+            queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
+          };
+        } else {
+          return {
+            answer: "I analyzed your comparison query but found no matching data. Please check if the arbitrator names are correct or try different arbitrators.",
+            data: null,
+            queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+          };
+        }
+      } catch (sqlError: any) {
+        console.error("Error executing AI-generated SQL:", sqlError);
+        
+        // For GROUP BY errors, provide a more specific message
+        if (sqlError.code === '42803') {
+          // Create a simplified fallback query for arbitrator comparison
+          try {
+            // Extract arbitrator names from the original SQL or error message
+            const arbNames = extractArbitratorNamesFromQuery(query);
+            
+            if (arbNames.length >= 2) {
+              const fallbackResults = [];
+              
+              // Run individual queries for each arbitrator
+              for (const name of arbNames) {
+                const result = await getArbitratorStats(name);
+                if (result) {
+                  fallbackResults.push(result);
+                }
+              }
+              
+              if (fallbackResults.length > 0) {
+                return {
+                  answer: `Comparing ${arbNames.join(' and ')}: ${formatComparisonResults(fallbackResults)}`,
+                  data: fallbackResults,
+                  queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+                };
+              }
+            }
+          } catch (fallbackError) {
+            console.error("Error in fallback comparison query:", fallbackError);
+          }
+        }
+        
+        return {
+          answer: "I understood your comparison query but encountered a technical error. Try being more specific with arbitrator names, such as 'Compare Smith and Johnson'.",
+          data: null,
+          queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+        };
+      }
     }
     
     return {
@@ -684,12 +734,104 @@ async function handleComplexQuery(query: string): Promise<{
     };
   } catch (error) {
     console.error("Error in complex query handling:", error);
+    
+    // Check if it's an OpenAI rate limit error
+    const err = error as any;
+    if (err.status === 429 || (err.error && err.error.type === 'insufficient_quota')) {
+      return {
+        answer: "I understood your complex question, but our AI service is currently unavailable. Try a simpler query like 'How many cases has Smith handled?' instead.",
+        data: null,
+        queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
+      };
+    }
+    
     return {
       answer: "I understood your complex comparison question, but encountered an error while analyzing it. Please try again with a simpler query.",
       data: null,
       queryType: QUERY_TYPES.ARBITRATOR_COMPARISON,
     };
   }
+}
+
+/**
+ * Extract arbitrator names from a query string
+ * @param query The query string
+ * @returns Array of arbitrator names
+ */
+function extractArbitratorNamesFromQuery(query: string): string[] {
+  const names = [];
+  
+  // Look for patterns like "Compare X and Y" or "between X and Y"
+  const betweenPattern = /(?:between|compare)\s+([A-Za-z\s\.]+?)\s+(?:and|vs|versus)\s+([A-Za-z\s\.]+)(?:[,\.\?]|$)/i;
+  const match = query.match(betweenPattern);
+  
+  if (match && match[1] && match[2]) {
+    names.push(match[1].trim());
+    names.push(match[2].trim());
+  } else {
+    // Try to find individual names
+    const nameMatches = query.match(/\b[A-Z][a-z]+\b/g);
+    if (nameMatches && nameMatches.length > 0) {
+      // Filter out common non-name words
+      const commonWords = ['how', 'what', 'which', 'when', 'where', 'compare', 'between'];
+      names.push(...nameMatches.filter(name => !commonWords.includes(name.toLowerCase())));
+    }
+  }
+  
+  return names;
+}
+
+/**
+ * Get basic stats for an arbitrator
+ * @param name Arbitrator name
+ * @returns Statistical data or null if not found
+ */
+async function getArbitratorStats(name: string): Promise<any> {
+  try {
+    // Simple query to get case count and win rate
+    const result = await db.execute(sql`
+      SELECT 
+        COUNT(*) as total_cases,
+        COUNT(CASE WHEN disposition ILIKE '%win%' THEN 1 END) as wins,
+        CAST(COUNT(CASE WHEN disposition ILIKE '%win%' THEN 1 END) AS FLOAT) / NULLIF(COUNT(*), 0) as win_rate
+      FROM arbitration_cases
+      WHERE LOWER(arbitrator_name) LIKE ${`%${name.toLowerCase()}%`}
+    `);
+    
+    if (Array.isArray(result) && result.length > 0 && result[0].total_cases > 0) {
+      return {
+        name,
+        ...result[0]
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error getting stats for arbitrator ${name}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Format comparison results into a readable string
+ * @param results Array of arbitrator stats
+ * @returns Formatted comparison string
+ */
+function formatComparisonResults(results: any[]): string {
+  if (!results || results.length === 0) {
+    return "No data available for comparison.";
+  }
+  
+  if (results.length === 1) {
+    const r = results[0];
+    return `${r.name} has handled ${r.total_cases} cases with a win rate of ${(r.win_rate * 100).toFixed(1)}%.`;
+  }
+  
+  // For multiple arbitrators, create a comparison
+  const parts = results.map(r => {
+    return `${r.name} (${r.total_cases} cases, ${(r.win_rate * 100).toFixed(1)}% win rate)`;
+  });
+  
+  return parts.join(' compared to ');
 }
 
 /**

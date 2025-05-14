@@ -192,9 +192,14 @@ Notes on data:
 - Some text fields like claim_amount and award_amount may contain monetary values with currency symbols
 - For name matching, consider variations in formatting (with/without middle initials)
 
-Generate valid PostgreSQL that answers the user's query. 
-For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern.
-Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.
+Generate valid PostgreSQL that answers the user's query. Follow these rules:
+1. For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern
+2. Only write SELECT queries - no INSERT, UPDATE, or DELETE operations
+3. Ensure that any column in the SELECT clause that is not in an aggregate function is included in the GROUP BY clause
+4. For arbitrator name matching, use exact matches: WHERE LOWER(arbitrator_name) = LOWER('Smith')
+5. Keep queries simple and focused on exactly what was asked
+6. Use NULLIF to avoid division by zero errors
+7. Prefer standard PostgreSQL syntax that works with all versions
 
 Return your response as a JSON object with this structure:
 {
