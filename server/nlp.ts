@@ -106,6 +106,9 @@ const QUERY_TYPES = {
   // Combined queries (arbitrator + respondent)
   COMBINED_OUTCOME_ANALYSIS: "combined_outcome_analysis",
   
+  // Comparative analysis of all arbitrators
+  ARBITRATOR_RANKING: "arbitrator_ranking",
+  
   // Complex queries requiring AI assistance
   COMPLEX_ANALYSIS: "complex_analysis",
   
@@ -1367,6 +1370,9 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
               break;
             case "COMBINED_OUTCOME_ANALYSIS":
               queryType = QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
+              break;
+            case "ARBITRATOR_RANKING":
+              queryType = QUERY_TYPES.ARBITRATOR_RANKING;
               break;
             case "COMPLEX_ANALYSIS":
               queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
