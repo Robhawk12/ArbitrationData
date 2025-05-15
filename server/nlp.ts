@@ -693,7 +693,7 @@ async function analyzeQuery(query: string): Promise<{
     }
     
     console.log("Analyzed query type:", type);
-    console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
+    console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType, year, timeframe });
     
     return {
       type,
@@ -702,6 +702,8 @@ async function analyzeQuery(query: string): Promise<{
         respondentName,
         disposition,
         caseType,
+        year,
+        timeframe,
       },
     };
   } catch (error) {
@@ -720,7 +722,7 @@ async function executeQueryByType(
   parameters: Record<string, string | null>
 ): Promise<{ data: any; message: string }> {
   try {
-    const { arbitratorName, respondentName, disposition, caseType } = parameters;
+    const { arbitratorName, respondentName, disposition, caseType, year, timeframe } = parameters;
     
     switch (queryType) {
       case QUERY_TYPES.ARBITRATOR_CASE_COUNT: {
@@ -1463,6 +1465,98 @@ async function executeQueryByType(
             message: "An error occurred while analyzing arbitrator award amounts. Please try again.",
           };
         }
+      }
+        
+      case QUERY_TYPES.TIME_BASED_ANALYSIS: {
+        if (!year && !timeframe) {
+          return { 
+            data: null, 
+            message: "No timeframe specified in the query. Please include a specific year or time period." 
+          };
+        }
+        
+        // Build a query to count cases with the specified disposition in the given timeframe
+        let yearCondition = '';
+        let timeframeDisplay = '';
+        
+        if (year) {
+          // Extract year from filing_date for comparison
+          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${year}`;
+          timeframeDisplay = `in ${year}`;
+        } else if (timeframe === 'last year') {
+          const lastYear = new Date().getFullYear() - 1;
+          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${lastYear}`;
+          timeframeDisplay = `in ${lastYear} (last year)`;
+        } else if (timeframe === 'this year') {
+          const thisYear = new Date().getFullYear();
+          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${thisYear}`;
+          timeframeDisplay = `in ${thisYear} (this year)`;
+        } else if (timeframe === 'past 5 years') {
+          const currentYear = new Date().getFullYear();
+          const fiveYearsAgo = currentYear - 5;
+          yearCondition = `EXTRACT(YEAR FROM filing_date) BETWEEN ${fiveYearsAgo} AND ${currentYear}`;
+          timeframeDisplay = `in the past 5 years (${fiveYearsAgo}-${currentYear})`;
+        } else {
+          // If we have a timeframe but couldn't parse it into a SQL condition
+          return { 
+            data: null, 
+            message: `I couldn't understand the timeframe "${timeframe}". Please specify a year like "2020" or a period like "last year".`
+          };
+        }
+        
+        // Determine the disposition filter based on the disposition parameter
+        let dispositionCondition = '';
+        let dispositionDisplay = '';
+        
+        if (disposition) {
+          if (disposition === 'award') {
+            dispositionCondition = `LOWER(disposition) LIKE '%award%'`;
+            dispositionDisplay = 'awarded';
+          } else if (disposition === 'dismiss') {
+            dispositionCondition = `LOWER(disposition) LIKE '%dismiss%'`;
+            dispositionDisplay = 'dismissed';
+          } else if (disposition === 'settle') {
+            dispositionCondition = `LOWER(disposition) LIKE '%settle%'`;
+            dispositionDisplay = 'settled';
+          } else if (disposition === 'withdraw') {
+            dispositionCondition = `LOWER(disposition) LIKE '%withdraw%'`;
+            dispositionDisplay = 'withdrawn';
+          } else {
+            dispositionCondition = `LOWER(disposition) LIKE '%${disposition}%'`;
+            dispositionDisplay = `with disposition containing "${disposition}"`;
+          }
+        } else {
+          // If no specific disposition was requested, we'll count all cases
+          dispositionDisplay = 'total';
+        }
+        
+        // Build the query
+        const queryResult = await db.execute(sql.raw(`
+          SELECT COUNT(*) as case_count 
+          FROM arbitration_cases 
+          WHERE ${yearCondition}
+          ${disposition ? `AND ${dispositionCondition}` : ''}
+          AND duplicate_of IS NULL
+        `));
+        
+        if (!queryResult || !queryResult[0]) {
+          return {
+            data: { count: 0 },
+            message: `No data found for ${timeframeDisplay}.`
+          };
+        }
+        
+        const count = Number(queryResult[0].case_count || 0);
+        
+        return {
+          data: { 
+            count,
+            year: year,
+            timeframe: timeframe,
+            disposition: disposition 
+          },
+          message: `${count} cases were ${dispositionDisplay} ${timeframeDisplay}.`
+        };
       }
         
       case QUERY_TYPES.COMPLEX_ANALYSIS: {
