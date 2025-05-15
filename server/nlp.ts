@@ -109,9 +109,6 @@ const QUERY_TYPES = {
   // Comparative analysis of all arbitrators
   ARBITRATOR_RANKING: "arbitrator_ranking",
   
-  // Time-based queries
-  TIME_BASED_ANALYSIS: "time_based_analysis",
-  
   // Complex queries requiring AI assistance
   COMPLEX_ANALYSIS: "complex_analysis",
   
@@ -323,207 +320,6 @@ function extractRespondentName(query: string): string | null {
 }
 
 /**
- * Extract timeframe information from a query
- * @param query The query text to analyze
- * @returns Object with year and/or timeframe information, or null if not found
- */
-function extractTimeframe(query: string): { year: number | null; timeframe: string | null } | null {
-  console.log(`Extracting timeframe from query: "${query}"`);
-  const lowerQuery = query.toLowerCase();
-  let year = null;
-  let timeframe = null;
-  
-  // Check for specific years
-  const yearPattern = /\b(19|20)\d{2}\b/g;
-  const yearMatches = lowerQuery.match(yearPattern);
-  
-  console.log(`Year pattern matches:`, yearMatches);
-  
-  if (yearMatches && yearMatches.length > 0) {
-    year = parseInt(yearMatches[0], 10);
-    timeframe = yearMatches[0];
-    console.log(`Found year ${year} in query`);
-    return { year, timeframe };
-  }
-  
-  // Check for phrases like "last year", "this year", etc.
-  const currentYear = new Date().getFullYear();
-  
-  if (lowerQuery.includes("last year")) {
-    year = currentYear - 1;
-    timeframe = "last year";
-    console.log(`Query refers to last year (${year})`);
-    return { year, timeframe };
-  }
-  
-  if (lowerQuery.includes("this year")) {
-    year = currentYear;
-    timeframe = "this year";
-    console.log(`Query refers to this year (${year})`);
-    return { year, timeframe };
-  }
-  
-  if (lowerQuery.includes("past 5 years") || lowerQuery.includes("last 5 years")) {
-    timeframe = "past 5 years";
-    console.log(`Query refers to past 5 years`);
-    return { year, timeframe };
-  }
-  
-  // If we couldn't extract any time information
-  console.log(`No timeframe found in query`);
-  return null;
-}
-
-/**
- * Execute a time-based analysis query
- * @param year The year to analyze
- * @param timeframe The timeframe description
- * @param disposition The case disposition type
- * @param caseType The case type
- * @param query The original user query
- */
-async function executeTimeBasedAnalysis(
-  year: string | null,
-  timeframe: string | null,
-  disposition: string | null,
-  caseType: string | null,
-  query: string
-): Promise<{ data: any; message: string }> {
-  console.log(`Execute time-based analysis: year=${year}, timeframe=${timeframe}, disposition=${disposition}`);
-  
-  if (!year && !timeframe) {
-    return { 
-      data: null, 
-      message: "No timeframe specified in the query. Please include a specific year or time period." 
-    };
-  }
-  
-  // Build a query to count cases with the specified disposition in the given timeframe
-  let yearCondition = '';
-  let timeframeDisplay = '';
-  
-  if (year) {
-    // Extract year from filing_date for comparison
-    yearCondition = `EXTRACT(YEAR FROM filing_date) = ${year}`;
-    timeframeDisplay = `in ${year}`;
-    console.log(`Year condition: ${yearCondition}`);
-  } else if (timeframe === 'last year') {
-    const lastYear = new Date().getFullYear() - 1;
-    yearCondition = `EXTRACT(YEAR FROM filing_date) = ${lastYear}`;
-    timeframeDisplay = `in ${lastYear} (last year)`;
-  } else if (timeframe === 'this year') {
-    const thisYear = new Date().getFullYear();
-    yearCondition = `EXTRACT(YEAR FROM filing_date) = ${thisYear}`;
-    timeframeDisplay = `in ${thisYear} (this year)`;
-  } else if (timeframe === 'past 5 years') {
-    const currentYear = new Date().getFullYear();
-    const fiveYearsAgo = currentYear - 5;
-    yearCondition = `EXTRACT(YEAR FROM filing_date) BETWEEN ${fiveYearsAgo} AND ${currentYear}`;
-    timeframeDisplay = `in the past 5 years (${fiveYearsAgo}-${currentYear})`;
-  } else {
-    // If we have a timeframe but couldn't parse it into a SQL condition
-    return { 
-      data: null, 
-      message: `I couldn't understand the timeframe "${timeframe}". Please specify a year like "2020" or a period like "last year".`
-    };
-  }
-  
-  // Determine the disposition filter based on the disposition parameter
-  let dispositionCondition = '';
-  let dispositionDisplay = '';
-  
-  if (disposition) {
-    if (disposition === 'award') {
-      dispositionCondition = `LOWER(disposition) LIKE '%award%'`;
-      dispositionDisplay = 'awarded';
-    } else if (disposition === 'dismiss') {
-      dispositionCondition = `LOWER(disposition) LIKE '%dismiss%'`;
-      dispositionDisplay = 'dismissed';
-    } else if (disposition === 'settle') {
-      dispositionCondition = `LOWER(disposition) LIKE '%settle%'`;
-      dispositionDisplay = 'settled';
-    } else if (disposition === 'withdraw') {
-      dispositionCondition = `LOWER(disposition) LIKE '%withdraw%'`;
-      dispositionDisplay = 'withdrawn';
-    } else {
-      // Default
-      dispositionCondition = `disposition IS NOT NULL`;
-      dispositionDisplay = disposition;
-    }
-  }
-  
-  // Directly use a more straightforward approach with prepared SQL statements
-  const sqlQuery = `
-    SELECT COUNT(*) as case_count 
-    FROM arbitration_cases 
-    WHERE filing_date IS NOT NULL
-    AND ${yearCondition}
-    ${disposition ? `AND ${dispositionCondition}` : ''}
-    AND (duplicate_of IS NULL OR duplicate_of = '')
-  `;
-  
-  console.log(`Executing SQL query: ${sqlQuery}`);
-  
-  try {
-    // Execute the query directly without prepared statements to avoid type issues
-    const result = await db.execute(sql.raw(sqlQuery));
-    console.log('Raw query result:', JSON.stringify(result));
-    
-    // Extract the count from the result in a safer way
-    let count = 0;
-    
-    if (result && Array.isArray(result) && result.length > 0) {
-      const firstRow = result[0];
-      console.log('First row of result:', firstRow);
-      
-      // Try different possible column names
-      if (firstRow.case_count !== undefined) {
-        count = Number(firstRow.case_count);
-      } else if (firstRow.count !== undefined) {
-        count = Number(firstRow.count);
-      } else {
-        // If column names don't match expectations, try to get first numeric value
-        for (const key in firstRow) {
-          if (firstRow[key] !== null && !isNaN(Number(firstRow[key]))) {
-            count = Number(firstRow[key]);
-            console.log(`Found count in column ${key}: ${count}`);
-            break;
-          }
-        }
-      }
-    }
-    
-    console.log(`Final count: ${count}`);
-    
-    // If we couldn't find a valid count, return an error
-    if (isNaN(count)) {
-      console.error('Could not extract valid count from query result');
-      return {
-        data: { count: 0 },
-        message: `Error processing query results for ${dispositionDisplay} cases ${timeframeDisplay}.`
-      };
-    }
-    
-    return {
-      data: { 
-        count,
-        disposition: disposition || "all",
-        timeframe: timeframe || year,
-        query
-      },
-      message: `There ${count === 1 ? 'was' : 'were'} ${count} ${dispositionDisplay ? dispositionDisplay + ' ' : ''}case${count === 1 ? '' : 's'} ${timeframeDisplay}.`
-    };
-    
-  } catch (error) {
-    console.error('Error executing time-based query:', error);
-    return {
-      data: null,
-      message: `An error occurred while analyzing cases ${dispositionDisplay} ${timeframeDisplay}.`
-    };
-  }
-}
-
-/**
  * Checks if a query contains both arbitrator and respondent references
  * @param query The query text to analyze
  * @returns An object containing extracted arbitrator and respondent names, or null if not found
@@ -573,66 +369,6 @@ async function analyzeQuery(query: string): Promise<{
     let respondentName = null;
     let disposition = null;
     let caseType = null;
-    let year = null;
-    let timeframe = null;
-    
-    // Extract timeframe information if present in the query
-    const timeframeInfo = extractTimeframe(query);
-    if (timeframeInfo) {
-      year = timeframeInfo.year?.toString() || null;
-      timeframe = timeframeInfo.timeframe;
-    }
-    
-    // Check if this is a time-based query about case dispositions
-    const hasTimeIndicator = timeframe || 
-                            lowerQuery.includes("year") || 
-                            lowerQuery.includes("2020") || 
-                            lowerQuery.includes("2019") || 
-                            lowerQuery.includes("2018");
-    
-    console.log(`Has time indicator: ${hasTimeIndicator}, Timeframe: ${timeframe}`);
-    
-    if (hasTimeIndicator && 
-        (lowerQuery.includes("how many") || lowerQuery.includes("number of")) &&
-        (lowerQuery.includes("case") || lowerQuery.includes("cases"))) {
-      
-      console.log("Detected time-based query about cases");
-      type = QUERY_TYPES.TIME_BASED_ANALYSIS;
-      
-      // Extract the disposition type from the query
-      if (lowerQuery.includes("award") || lowerQuery.includes("awarded")) {
-        disposition = "award";
-        console.log("Detected disposition: award");
-      } else if (lowerQuery.includes("dismiss") || lowerQuery.includes("dismissed")) {
-        disposition = "dismiss";
-        console.log("Detected disposition: dismiss");
-      } else if (lowerQuery.includes("settle") || lowerQuery.includes("settled")) {
-        disposition = "settle";
-        console.log("Detected disposition: settle");
-      } else if (lowerQuery.includes("withdraw") || lowerQuery.includes("withdrawn")) {
-        disposition = "withdraw";
-        console.log("Detected disposition: withdraw");
-      } else {
-        // If no specific disposition is mentioned, the query might be about all cases
-        console.log("No specific disposition detected in query");
-      }
-      
-      // Return early with the time-based analysis parameters
-      console.log("Analyzed as time-based query with disposition");
-      console.log("Parameters:", { year, timeframe, disposition, caseType });
-      
-      return {
-        type,
-        parameters: {
-          year,
-          timeframe,
-          disposition,
-          caseType,
-          arbitratorName,
-          respondentName
-        },
-      };
-    }
     
     // First, check if this is a combined query (both arbitrator and respondent)
     const combinedQuery = extractCombinedQuery(query);
@@ -643,7 +379,7 @@ async function analyzeQuery(query: string): Promise<{
       
       // We've identified this as a combined query, so return early
       console.log("Analyzed as combined query with both arbitrator and respondent");
-      console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType, year, timeframe });
+      console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
       
       return {
         type,
@@ -652,8 +388,6 @@ async function analyzeQuery(query: string): Promise<{
           respondentName,
           disposition,
           caseType,
-          year,
-          timeframe
         },
       };
     }
@@ -862,7 +596,7 @@ async function analyzeQuery(query: string): Promise<{
     }
     
     console.log("Analyzed query type:", type);
-    console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType, year, timeframe });
+    console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
     
     return {
       type,
@@ -871,8 +605,6 @@ async function analyzeQuery(query: string): Promise<{
         respondentName,
         disposition,
         caseType,
-        year,
-        timeframe,
       },
     };
   } catch (error) {
@@ -888,11 +620,10 @@ async function analyzeQuery(query: string): Promise<{
  */
 async function executeQueryByType(
   queryType: string,
-  parameters: Record<string, string | null>,
-  query: string = ''
+  parameters: Record<string, string | null>
 ): Promise<{ data: any; message: string }> {
   try {
-    const { arbitratorName, respondentName, disposition, caseType, year, timeframe } = parameters;
+    const { arbitratorName, respondentName, disposition, caseType } = parameters;
     
     switch (queryType) {
       case QUERY_TYPES.ARBITRATOR_CASE_COUNT: {
@@ -1637,152 +1368,6 @@ async function executeQueryByType(
         }
       }
         
-      case QUERY_TYPES.TIME_BASED_ANALYSIS: {
-        // Use our dedicated function for time-based analysis
-        const { executeTimeBasedAnalysis } = await import('./time_based_query');
-        return await executeTimeBasedAnalysis(year, timeframe, disposition, caseType, query);
-      }
-      
-      // Old unreachable code removed
-      /*
-      if (!year && !timeframe) {
-          return { 
-            data: null, 
-            message: "No timeframe specified in the query. Please include a specific year or time period." 
-          };
-        }
-        
-        // Build a query to count cases with the specified disposition in the given timeframe
-        let yearCondition = '';
-        let timeframeDisplay = '';
-        
-        if (year) {
-          // Extract year from filing_date for comparison
-          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${year}`;
-          timeframeDisplay = `in ${year}`;
-          console.log(`Year condition: ${yearCondition}`);
-        } else if (timeframe === 'last year') {
-          const lastYear = new Date().getFullYear() - 1;
-          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${lastYear}`;
-          timeframeDisplay = `in ${lastYear} (last year)`;
-        } else if (timeframe === 'this year') {
-          const thisYear = new Date().getFullYear();
-          yearCondition = `EXTRACT(YEAR FROM filing_date) = ${thisYear}`;
-          timeframeDisplay = `in ${thisYear} (this year)`;
-        } else if (timeframe === 'past 5 years') {
-          const currentYear = new Date().getFullYear();
-          const fiveYearsAgo = currentYear - 5;
-          yearCondition = `EXTRACT(YEAR FROM filing_date) BETWEEN ${fiveYearsAgo} AND ${currentYear}`;
-          timeframeDisplay = `in the past 5 years (${fiveYearsAgo}-${currentYear})`;
-        } else {
-          // If we have a timeframe but couldn't parse it into a SQL condition
-          return { 
-            data: null, 
-            message: `I couldn't understand the timeframe "${timeframe}". Please specify a year like "2020" or a period like "last year".`
-          };
-        }
-        
-        // Determine the disposition filter based on the disposition parameter
-        let dispositionCondition = '';
-        let dispositionDisplay = '';
-        
-        if (disposition) {
-          if (disposition === 'award') {
-            dispositionCondition = `LOWER(disposition) LIKE '%award%'`;
-            dispositionDisplay = 'awarded';
-          } else if (disposition === 'dismiss') {
-            dispositionCondition = `LOWER(disposition) LIKE '%dismiss%'`;
-            dispositionDisplay = 'dismissed';
-          } else if (disposition === 'settle') {
-            dispositionCondition = `LOWER(disposition) LIKE '%settle%'`;
-            dispositionDisplay = 'settled';
-          } else if (disposition === 'withdraw') {
-            dispositionCondition = `LOWER(disposition) LIKE '%withdraw%'`;
-            dispositionDisplay = 'withdrawn';
-          } else {
-            dispositionCondition = `LOWER(disposition) LIKE '%${disposition}%'`;
-            dispositionDisplay = `with disposition containing "${disposition}"`;
-          }
-        } else {
-          // If no specific disposition was requested, we'll count all cases
-          dispositionDisplay = 'total';
-        }
-        
-        // Build the query
-        console.log(`Executing time-based query with condition: ${yearCondition} and disposition: ${dispositionCondition || 'any'}`);
-        
-        // Directly use a more straightforward approach with prepared SQL statements
-        const sqlQuery = `
-          SELECT COUNT(*) as case_count 
-          FROM arbitration_cases 
-          WHERE filing_date IS NOT NULL
-          AND ${yearCondition}
-          ${disposition ? `AND ${dispositionCondition}` : ''}
-          AND (duplicate_of IS NULL OR duplicate_of = '')
-        `;
-        
-        console.log(`Executing SQL query: ${sqlQuery}`);
-        
-        try {
-          // Execute the query directly without prepared statements to avoid type issues
-          const result = await db.execute(sql.raw(sqlQuery));
-          console.log('Raw query result:', JSON.stringify(result));
-          
-          // Extract the count from the result in a safer way
-          let count = 0;
-          
-          if (result && Array.isArray(result) && result.length > 0) {
-            const firstRow = result[0];
-            console.log('First row of result:', firstRow);
-            
-            // Try different possible column names
-            if (firstRow.case_count !== undefined) {
-              count = Number(firstRow.case_count);
-            } else if (firstRow.count !== undefined) {
-              count = Number(firstRow.count);
-            } else {
-              // If column names don't match expectations, try to get first numeric value
-              for (const key in firstRow) {
-                if (firstRow[key] !== null && !isNaN(Number(firstRow[key]))) {
-                  count = Number(firstRow[key]);
-                  console.log(`Found count in column ${key}: ${count}`);
-                  break;
-                }
-              }
-            }
-          }
-          
-          console.log(`Final count: ${count}`);
-          
-          // If we couldn't find a valid count, return an error
-          if (isNaN(count)) {
-            console.error('Could not extract valid count from query result');
-            return {
-              data: { count: 0 },
-              message: `Error processing query results for ${dispositionDisplay} cases ${timeframeDisplay}.`
-            };
-          }
-          
-          return {
-            data: { 
-              count,
-              disposition: disposition || "all",
-              timeframe: timeframe || year,
-              query: query
-            },
-            message: `There ${count === 1 ? 'was' : 'were'} ${count} ${dispositionDisplay ? dispositionDisplay + ' ' : ''}case${count === 1 ? '' : 's'} ${timeframeDisplay}.`
-          };
-          
-        } catch (error) {
-          console.error('Error executing time-based query:', error);
-          return {
-            data: null,
-            message: `An error occurred while analyzing cases ${dispositionDisplay} ${timeframeDisplay}.`
-          };
-        }
-        };
-      }
-        
       case QUERY_TYPES.COMPLEX_ANALYSIS: {
         // This is a placeholder for complex queries that will be handled by OpenAI
         // The actual processing happens in processNaturalLanguageQuery
@@ -1862,9 +1447,6 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
             case "ARBITRATOR_RANKING":
               queryType = QUERY_TYPES.ARBITRATOR_RANKING;
               break;
-            case "TIME_BASED_ANALYSIS":
-              queryType = QUERY_TYPES.TIME_BASED_ANALYSIS;
-              break;
             case "COMPLEX_ANALYSIS":
               queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
               break;
@@ -1879,14 +1461,7 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
               respondentName: aiAnalysis.respondentName || null,
               disposition: aiAnalysis.disposition || null,
               caseType: aiAnalysis.caseType || null,
-              year: null, // Will be extracted from timeframe if present
-              timeframe: aiAnalysis.timeframe || null,
             };
-            
-            // If we have a timeframe that looks like a year, also set the year parameter
-            if (aiAnalysis.timeframe && /^\d{4}$/.test(aiAnalysis.timeframe)) {
-              parameters.year = aiAnalysis.timeframe;
-            }
             
             console.log("Using AI analysis with standard query type:", queryType);
             const result = await executeQueryByType(queryType, parameters);
