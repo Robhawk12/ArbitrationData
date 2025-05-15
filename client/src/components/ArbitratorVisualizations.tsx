@@ -6,6 +6,12 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { apiRequest } from "../lib/queryClient";
 
 interface ArbitratorRanking {
@@ -29,6 +35,8 @@ interface CaseType {
 export default function ArbitratorVisualizations() {
   const [selectedCaseType, setSelectedCaseType] = useState<string>("all");
   const [caseTypes, setCaseTypes] = useState<CaseType[]>([]);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   
   // Fetch case types
   const { data: caseTypeData } = useQuery<CaseType[]>({
@@ -42,17 +50,37 @@ export default function ArbitratorVisualizations() {
     }
   }, [caseTypeData]);
   
+  // Helper function to build query params
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+    
+    if (selectedCaseType !== 'all') {
+      params.append('caseType', selectedCaseType);
+    }
+    
+    if (startDate) {
+      params.append('dateFrom', startDate.toISOString().split('T')[0]);
+    }
+    
+    if (endDate) {
+      params.append('dateTo', endDate.toISOString().split('T')[0]);
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : '';
+  };
+  
   // Fetch arbitrator rankings by case count
-  const casesUrl = `/api/arbitrator-rankings/cases${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
+  const casesUrl = `/api/arbitrator-rankings/cases${buildQueryParams()}`;
   const { data: rankingsByCases, isLoading: isLoadingRankings } = useQuery({
-    queryKey: [casesUrl, selectedCaseType],
+    queryKey: ['/api/arbitrator-rankings/cases', selectedCaseType, startDate, endDate],
     queryFn: () => apiRequest<ArbitratorRanking[]>(casesUrl),
   });
   
   // Fetch arbitrator rankings by award amounts
-  const awardsUrl = `/api/arbitrator-rankings/awards${selectedCaseType !== 'all' ? `?caseType=${encodeURIComponent(selectedCaseType)}` : ''}`;
+  const awardsUrl = `/api/arbitrator-rankings/awards${buildQueryParams()}`;
   const { data: rankingsByAwards, isLoading: isLoadingAwards } = useQuery({
-    queryKey: [awardsUrl, selectedCaseType],
+    queryKey: ['/api/arbitrator-rankings/awards', selectedCaseType, startDate, endDate],
     queryFn: () => apiRequest<ArbitratorAwardRanking[]>(awardsUrl),
   });
   
@@ -128,23 +156,97 @@ export default function ArbitratorVisualizations() {
           </p>
         </div>
         
-        <div className="w-full md:w-64">
-          <Select
-            value={selectedCaseType}
-            onValueChange={(value) => setSelectedCaseType(value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Filter by case type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All case types</SelectItem>
-              {caseTypes.map((type) => (
-                <SelectItem key={type.caseType} value={type.caseType || "unknown"}>
-                  {type.caseType || "Unknown"} ({type.count})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+          {/* Date Range Filter */}
+          <div className="flex flex-row gap-2 w-full md:w-auto">
+            {/* Start Date */}
+            <div className="grid gap-2 w-full">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "MM/dd/yyyy") : "Start Date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            {/* End Date */}
+            <div className="grid gap-2 w-full">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "MM/dd/yyyy") : "End Date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                    disabled={(date) => startDate ? date < startDate : false}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            {/* Clear Dates Button - Only show if either date is set */}
+            {(startDate || endDate) && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                }}
+                className="h-10 w-10 shrink-0"
+              >
+                ✕
+              </Button>
+            )}
+          </div>
+          
+          {/* Case Type Filter */}
+          <div className="w-full md:w-64">
+            <Select
+              value={selectedCaseType}
+              onValueChange={(value) => setSelectedCaseType(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by case type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All case types</SelectItem>
+                {caseTypes.map((type) => (
+                  <SelectItem key={type.caseType} value={type.caseType || "unknown"}>
+                    {type.caseType || "Unknown"} ({type.count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       

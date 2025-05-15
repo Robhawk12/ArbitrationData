@@ -618,8 +618,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get query parameters for filtering
       const caseType = req.query.caseType as string | undefined;
       const limit = parseInt(req.query.limit as string || "10");
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
       
-      // SQL query to get rankings
+      // Build where clauses and params array
+      let whereConditions = [
+        'arbitrator_name IS NOT NULL',
+        '(arbitrator_name != \'NA\' AND UPPER(arbitrator_name) != \'NA\' AND arbitrator_name != \'N/A\' AND arbitrator_name != \'Not Available\')',
+        'disposition ILIKE \'%award%\''
+      ];
+      
+      const params: any[] = [];
+      let paramCounter = 1;
+      
+      if (caseType) {
+        whereConditions.push(`case_type = $${paramCounter}`);
+        params.push(caseType);
+        paramCounter++;
+      }
+      
+      if (dateFrom) {
+        whereConditions.push(`filing_date >= $${paramCounter}`);
+        params.push(dateFrom);
+        paramCounter++;
+      }
+      
+      if (dateTo) {
+        whereConditions.push(`filing_date <= $${paramCounter}`);
+        params.push(dateTo);
+        paramCounter++;
+      }
+      
+      // Add limit parameter
+      params.push(limit);
+      
+      // Build the complete SQL query
       const query = `
         SELECT 
           arbitrator_name as "arbitratorName", 
@@ -627,18 +660,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM 
           arbitration_cases
         WHERE 
-          arbitrator_name IS NOT NULL
-          AND (arbitrator_name != 'NA' AND UPPER(arbitrator_name) != 'NA' AND arbitrator_name != 'N/A' AND arbitrator_name != 'Not Available')
-          AND disposition ILIKE '%award%'
-          ${caseType ? `AND case_type = $1` : ''}
+          ${whereConditions.join(' AND ')}
         GROUP BY 
           arbitrator_name 
         ORDER BY 
           "caseCount" DESC
-        LIMIT $${caseType ? '2' : '1'}
+        LIMIT $${paramCounter}
       `;
       
-      const params = caseType ? [caseType, limit] : [limit];
       const result = await pool.query(query, params);
       
       res.json(result.rows);
@@ -655,8 +684,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get query parameters for filtering
       const caseType = req.query.caseType as string | undefined;
       const limit = parseInt(req.query.limit as string || "10");
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
       
-      // SQL query to get rankings - filter out null award amounts and use numeric comparisons
+      // Build where clauses and params array
+      let whereConditions = [
+        'arbitrator_name IS NOT NULL',
+        '(arbitrator_name != \'NA\' AND UPPER(arbitrator_name) != \'NA\' AND arbitrator_name != \'N/A\' AND arbitrator_name != \'Not Available\')',
+        'award_amount IS NOT NULL',
+        'award_amount != \'\'',
+        'award_amount ~ \'^[0-9]+(\\.[0-9]+)?$\'',
+        'disposition ILIKE \'%award%\''
+      ];
+      
+      const params: any[] = [];
+      let paramCounter = 1;
+      
+      if (caseType) {
+        whereConditions.push(`case_type = $${paramCounter}`);
+        params.push(caseType);
+        paramCounter++;
+      }
+      
+      if (dateFrom) {
+        whereConditions.push(`filing_date >= $${paramCounter}`);
+        params.push(dateFrom);
+        paramCounter++;
+      }
+      
+      if (dateTo) {
+        whereConditions.push(`filing_date <= $${paramCounter}`);
+        params.push(dateTo);
+        paramCounter++;
+      }
+      
+      // Add limit parameter
+      params.push(limit);
+      
+      // Build the complete SQL query
       const query = `
         SELECT 
           arbitrator_name as "arbitratorName", 
@@ -667,23 +732,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM 
           arbitration_cases
         WHERE 
-          arbitrator_name IS NOT NULL
-          AND (arbitrator_name != 'NA' AND UPPER(arbitrator_name) != 'NA' AND arbitrator_name != 'N/A' AND arbitrator_name != 'Not Available')
-          AND award_amount IS NOT NULL
-          AND award_amount != ''
-          AND award_amount ~ '^[0-9]+(\\.[0-9]+)?$'
-          AND disposition ILIKE '%award%'
-          ${caseType ? `AND case_type = $1` : ''}
+          ${whereConditions.join(' AND ')}
         GROUP BY 
           arbitrator_name 
         HAVING 
           COUNT(*) > 4
         ORDER BY 
           "averageAward" DESC
-        LIMIT $${caseType ? '2' : '1'}
+        LIMIT $${paramCounter}
       `;
       
-      const params = caseType ? [caseType, limit] : [limit];
       const result = await pool.query(query, params);
       
       res.json(result.rows);
