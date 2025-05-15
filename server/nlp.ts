@@ -1399,6 +1399,7 @@ async function executeQueryByType(
 export async function processNaturalLanguageQuery(query: string): Promise<{
   answer: string;
   data: any;
+  sql?: string;
   queryType: string;
 }> {
   try {
@@ -1420,6 +1421,7 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
         return {
           answer: aiResponse.response, // Return the full response which includes both SQL and explanation
           data: queryResults,
+          sql: aiResponse.sql, // Include the cleaned SQL that was executed
           queryType: "OPENAI_QUERY"
         };
       } catch (sqlError: any) {

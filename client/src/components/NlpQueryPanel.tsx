@@ -7,6 +7,8 @@ interface NlpQueryPanelProps {
 export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
+  const [executedSql, setExecutedSql] = useState<string | null>(null);
+  const [queryResults, setQueryResults] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -21,6 +23,8 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     
     setIsLoading(true);
     setError(null);
+    setExecutedSql(null);
+    setQueryResults(null);
     
     try {
       const response = await fetch("/api/nlp-query", {
@@ -41,6 +45,15 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
         setAnswer(data.answer as string);
         // Check if this is an OpenAI-processed query (all will be now)
         setUsingAI(data.queryType.startsWith('OPENAI_'));
+        
+        // Store the executed SQL and results if available
+        if ('sql' in data) {
+          setExecutedSql(data.sql as string);
+        }
+        
+        if ('data' in data) {
+          setQueryResults(data.data);
+        }
       } else {
         setError("Received an invalid response format from the server.");
       }
@@ -191,6 +204,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
               </div>
             )}
           </div>
+          
           <div className="prose prose-sm max-w-none">
             <div 
               className="text-neutral-700" 
@@ -201,6 +215,22 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
               }} 
             />
           </div>
+          
+          {executedSql && (
+            <div className="mt-4 border-t border-[#b8dbca] pt-4">
+              <h4 className="font-medium text-[#217346] mb-2">Executed SQL:</h4>
+              <pre className="bg-gray-800 text-white p-3 rounded text-sm overflow-x-auto">{executedSql}</pre>
+            </div>
+          )}
+          
+          {queryResults && (
+            <div className="mt-4 border-t border-[#b8dbca] pt-4">
+              <h4 className="font-medium text-[#217346] mb-2">Query Results:</h4>
+              <div className="bg-white border border-gray-200 rounded p-2 overflow-x-auto">
+                <pre className="text-xs text-gray-800">{JSON.stringify(queryResults, null, 2)}</pre>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
