@@ -148,9 +148,9 @@ export default function ArbitratorVisualizations() {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Case Count Rankings */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Most Awarded Cases by Arbitrator</CardTitle>
             <CardDescription>
@@ -202,7 +202,7 @@ export default function ArbitratorVisualizations() {
         </Card>
         
         {/* Award Amount Rankings */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Most Awarded Cases by Amount</CardTitle>
             <CardDescription>
