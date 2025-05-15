@@ -109,6 +109,9 @@ const QUERY_TYPES = {
   // Comparative analysis of all arbitrators
   ARBITRATOR_RANKING: "arbitrator_ranking",
   
+  // Time-based queries
+  TIME_BASED_ANALYSIS: "time_based_analysis",
+  
   // Complex queries requiring AI assistance
   COMPLEX_ANALYSIS: "complex_analysis",
   
@@ -320,6 +323,50 @@ function extractRespondentName(query: string): string | null {
 }
 
 /**
+ * Extract timeframe information from a query
+ * @param query The query text to analyze
+ * @returns Object with year and/or timeframe information, or null if not found
+ */
+function extractTimeframe(query: string): { year: number | null; timeframe: string | null } | null {
+  const lowerQuery = query.toLowerCase();
+  let year = null;
+  let timeframe = null;
+  
+  // Check for specific years
+  const yearPattern = /\b(19|20)\d{2}\b/g;
+  const yearMatches = lowerQuery.match(yearPattern);
+  
+  if (yearMatches && yearMatches.length > 0) {
+    year = parseInt(yearMatches[0], 10);
+    timeframe = yearMatches[0];
+    return { year, timeframe };
+  }
+  
+  // Check for phrases like "last year", "this year", etc.
+  const currentYear = new Date().getFullYear();
+  
+  if (lowerQuery.includes("last year")) {
+    year = currentYear - 1;
+    timeframe = "last year";
+    return { year, timeframe };
+  }
+  
+  if (lowerQuery.includes("this year")) {
+    year = currentYear;
+    timeframe = "this year";
+    return { year, timeframe };
+  }
+  
+  if (lowerQuery.includes("past 5 years") || lowerQuery.includes("last 5 years")) {
+    timeframe = "past 5 years";
+    return { year, timeframe };
+  }
+  
+  // If we couldn't extract any time information
+  return null;
+}
+
+/**
  * Checks if a query contains both arbitrator and respondent references
  * @param query The query text to analyze
  * @returns An object containing extracted arbitrator and respondent names, or null if not found
@@ -369,6 +416,54 @@ async function analyzeQuery(query: string): Promise<{
     let respondentName = null;
     let disposition = null;
     let caseType = null;
+    let year = null;
+    let timeframe = null;
+    
+    // Extract timeframe information if present in the query
+    const timeframeInfo = extractTimeframe(query);
+    if (timeframeInfo) {
+      year = timeframeInfo.year?.toString() || null;
+      timeframe = timeframeInfo.timeframe;
+    }
+    
+    // Check if this is a time-based query about case dispositions
+    if (timeframe && 
+        (lowerQuery.includes("how many") || lowerQuery.includes("number of")) &&
+        (lowerQuery.includes("case") || lowerQuery.includes("cases")) &&
+        ((lowerQuery.includes("award") || lowerQuery.includes("awarded")) ||
+         lowerQuery.includes("dismiss") || lowerQuery.includes("dismissed") ||
+         lowerQuery.includes("settle") || lowerQuery.includes("settled") ||
+         lowerQuery.includes("withdraw") || lowerQuery.includes("withdrawn"))) {
+      
+      type = QUERY_TYPES.TIME_BASED_ANALYSIS;
+      
+      // Extract the disposition type from the query
+      if (lowerQuery.includes("award") || lowerQuery.includes("awarded")) {
+        disposition = "award";
+      } else if (lowerQuery.includes("dismiss") || lowerQuery.includes("dismissed")) {
+        disposition = "dismiss";
+      } else if (lowerQuery.includes("settle") || lowerQuery.includes("settled")) {
+        disposition = "settle";
+      } else if (lowerQuery.includes("withdraw") || lowerQuery.includes("withdrawn")) {
+        disposition = "withdraw";
+      }
+      
+      // Return early with the time-based analysis parameters
+      console.log("Analyzed as time-based query with disposition");
+      console.log("Parameters:", { year, timeframe, disposition, caseType });
+      
+      return {
+        type,
+        parameters: {
+          year,
+          timeframe,
+          disposition,
+          caseType,
+          arbitratorName,
+          respondentName
+        },
+      };
+    }
     
     // First, check if this is a combined query (both arbitrator and respondent)
     const combinedQuery = extractCombinedQuery(query);
@@ -379,7 +474,7 @@ async function analyzeQuery(query: string): Promise<{
       
       // We've identified this as a combined query, so return early
       console.log("Analyzed as combined query with both arbitrator and respondent");
-      console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType });
+      console.log("Parameters:", { arbitratorName, respondentName, disposition, caseType, year, timeframe });
       
       return {
         type,
@@ -388,6 +483,8 @@ async function analyzeQuery(query: string): Promise<{
           respondentName,
           disposition,
           caseType,
+          year,
+          timeframe
         },
       };
     }
