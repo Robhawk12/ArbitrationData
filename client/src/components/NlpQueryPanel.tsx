@@ -7,10 +7,13 @@ interface NlpQueryPanelProps {
 export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
+  // Keep these state variables for debugging but don't display them in the UI
+  const [executedSql, setExecutedSql] = useState<string | null>(null);
+  const [queryResults, setQueryResults] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [usingAI, setUsingAI] = useState(false);
+  const [usingAI, setUsingAI] = useState(true); // Always using AI now
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +24,8 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
     
     setIsLoading(true);
     setError(null);
+    setExecutedSql(null);
+    setQueryResults(null);
     
     try {
       const response = await fetch("/api/nlp-query", {
@@ -39,8 +44,17 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       
       if (data && typeof data === 'object' && 'answer' in data) {
         setAnswer(data.answer as string);
-        // Check if this was an AI-processed query
-        setUsingAI(data.queryType === 'complex_analysis');
+        // Check if this is an OpenAI-processed query (all will be now)
+        setUsingAI(data.queryType.startsWith('OPENAI_'));
+        
+        // Store the executed SQL and results if available
+        if ('sql' in data) {
+          setExecutedSql(data.sql as string);
+        }
+        
+        if ('data' in data) {
+          setQueryResults(data.data);
+        }
       } else {
         setError("Received an invalid response format from the server.");
       }
@@ -102,15 +116,16 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
               The system will provide multiple matches if your query is ambiguous.
             </p>
             
-            <h3 className="font-medium text-[#217346] mb-2">AI-Enhanced Analysis</h3>
+            <h3 className="font-medium text-[#217346] mb-2">OpenAI-Powered Analysis</h3>
             <p className="mb-2">
-              Complex questions that don't fit standard patterns will be analyzed with AI:
+              All queries are processed using OpenAI to provide detailed insights:
             </p>
             <ul className="list-disc pl-5 mb-3 space-y-1 text-neutral-700">
-              
+              <li>Ask complex questions about arbitration cases</li>
+              <li>Get SQL queries and detailed explanations for all questions</li>
               <li>Ask about trends or patterns in the data</li>
-              <li>Request specialized calculations not available in standard queries</li>
-              <li>Questions requiring deeper understanding of legal context</li>
+              <li>Request specialized calculations and comparative analysis</li>
+              <li>Ask questions that require understanding of legal context</li>
             </ul>
             
           </div>
@@ -180,18 +195,22 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       {answer && !error && (
         <div className="bg-[#e8f4ee] border border-[#b8dbca] p-4 rounded mt-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-medium text-[#217346]">Answer:</h3>
-            {usingAI && (
-              <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                AI Enhanced
-              </div>
-            )}
+            <h3 className="font-medium text-[#217346]">Analysis:</h3>
+            <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI-Powered
+            </div>
           </div>
-          <div className="whitespace-pre-line text-neutral-700">
-            {answer}
+          
+          <div className="prose prose-sm max-w-none">
+            <div 
+              className="text-neutral-700" 
+              dangerouslySetInnerHTML={{ 
+                __html: answer.replace(/\n/g, '<br/>')
+              }} 
+            />
           </div>
         </div>
       )}
