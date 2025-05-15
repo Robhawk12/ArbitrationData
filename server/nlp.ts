@@ -328,6 +328,7 @@ function extractRespondentName(query: string): string | null {
  * @returns Object with year and/or timeframe information, or null if not found
  */
 function extractTimeframe(query: string): { year: number | null; timeframe: string | null } | null {
+  console.log(`Extracting timeframe from query: "${query}"`);
   const lowerQuery = query.toLowerCase();
   let year = null;
   let timeframe = null;
@@ -336,9 +337,12 @@ function extractTimeframe(query: string): { year: number | null; timeframe: stri
   const yearPattern = /\b(19|20)\d{2}\b/g;
   const yearMatches = lowerQuery.match(yearPattern);
   
+  console.log(`Year pattern matches:`, yearMatches);
+  
   if (yearMatches && yearMatches.length > 0) {
     year = parseInt(yearMatches[0], 10);
     timeframe = yearMatches[0];
+    console.log(`Found year ${year} in query`);
     return { year, timeframe };
   }
   
@@ -348,21 +352,25 @@ function extractTimeframe(query: string): { year: number | null; timeframe: stri
   if (lowerQuery.includes("last year")) {
     year = currentYear - 1;
     timeframe = "last year";
+    console.log(`Query refers to last year (${year})`);
     return { year, timeframe };
   }
   
   if (lowerQuery.includes("this year")) {
     year = currentYear;
     timeframe = "this year";
+    console.log(`Query refers to this year (${year})`);
     return { year, timeframe };
   }
   
   if (lowerQuery.includes("past 5 years") || lowerQuery.includes("last 5 years")) {
     timeframe = "past 5 years";
+    console.log(`Query refers to past 5 years`);
     return { year, timeframe };
   }
   
   // If we couldn't extract any time information
+  console.log(`No timeframe found in query`);
   return null;
 }
 
@@ -427,25 +435,37 @@ async function analyzeQuery(query: string): Promise<{
     }
     
     // Check if this is a time-based query about case dispositions
-    if (timeframe && 
+    const hasTimeIndicator = timeframe || 
+                            lowerQuery.includes("year") || 
+                            lowerQuery.includes("2020") || 
+                            lowerQuery.includes("2019") || 
+                            lowerQuery.includes("2018");
+    
+    console.log(`Has time indicator: ${hasTimeIndicator}, Timeframe: ${timeframe}`);
+    
+    if (hasTimeIndicator && 
         (lowerQuery.includes("how many") || lowerQuery.includes("number of")) &&
-        (lowerQuery.includes("case") || lowerQuery.includes("cases")) &&
-        ((lowerQuery.includes("award") || lowerQuery.includes("awarded")) ||
-         lowerQuery.includes("dismiss") || lowerQuery.includes("dismissed") ||
-         lowerQuery.includes("settle") || lowerQuery.includes("settled") ||
-         lowerQuery.includes("withdraw") || lowerQuery.includes("withdrawn"))) {
+        (lowerQuery.includes("case") || lowerQuery.includes("cases"))) {
       
+      console.log("Detected time-based query about cases");
       type = QUERY_TYPES.TIME_BASED_ANALYSIS;
       
       // Extract the disposition type from the query
       if (lowerQuery.includes("award") || lowerQuery.includes("awarded")) {
         disposition = "award";
+        console.log("Detected disposition: award");
       } else if (lowerQuery.includes("dismiss") || lowerQuery.includes("dismissed")) {
         disposition = "dismiss";
+        console.log("Detected disposition: dismiss");
       } else if (lowerQuery.includes("settle") || lowerQuery.includes("settled")) {
         disposition = "settle";
+        console.log("Detected disposition: settle");
       } else if (lowerQuery.includes("withdraw") || lowerQuery.includes("withdrawn")) {
         disposition = "withdraw";
+        console.log("Detected disposition: withdraw");
+      } else {
+        // If no specific disposition is mentioned, the query might be about all cases
+        console.log("No specific disposition detected in query");
       }
       
       // Return early with the time-based analysis parameters
@@ -1534,26 +1554,55 @@ async function executeQueryByType(
         // Build the query
         console.log(`Executing time-based query with condition: ${yearCondition} and disposition: ${dispositionCondition || 'any'}`);
         
-        const queryResult = await db.execute(sql.raw(`
-          SELECT COUNT(*) as case_count 
-          FROM arbitration_cases 
-          WHERE ${yearCondition}
-          ${disposition ? `AND ${dispositionCondition}` : ''}
+        // Use a simpler query approach that's guaranteed to work with PostgreSQL
+        console.log(`Raw SQL Query: SELECT COUNT(*) FROM arbitration_cases WHERE ${yearCondition} ${disposition ? `AND ${dispositionCondition}` : ''} AND duplicate_of IS NULL`);
+        
+        // First verify if we have any matching records
+        const verifyQuery = await db.execute(sql`
+          SELECT 1 FROM arbitration_cases 
+          WHERE ${sql.raw(yearCondition)}
+          ${disposition ? sql`AND ${sql.raw(dispositionCondition)}` : sql``}
           AND duplicate_of IS NULL
-        `));
+          LIMIT 1
+        `);
         
-        console.log('Query result:', queryResult);
+        console.log('Verify query result:', verifyQuery);
         
-        if (!queryResult || !queryResult.length || !queryResult[0]) {
+        // If no records match at all
+        if (!verifyQuery || !verifyQuery.length) {
           return {
             data: { count: 0 },
             message: `No data found for cases ${dispositionDisplay} ${timeframeDisplay}.`
           };
         }
         
-        // Extract the count from the result - format may be queryResult[0].case_count or queryResult[0].count
-        const resultRow = queryResult[0];
-        const count = Number(resultRow.case_count || resultRow.count || 0);
+        // Now do the actual count query
+        const countQuery = await db.execute(sql`
+          SELECT COUNT(*) as count
+          FROM arbitration_cases 
+          WHERE ${sql.raw(yearCondition)}
+          ${disposition ? sql`AND ${sql.raw(dispositionCondition)}` : sql``}
+          AND duplicate_of IS NULL
+        `);
+        
+        console.log('Count query result:', countQuery);
+        
+        // Get the count value from the result
+        let count = 0;
+        if (countQuery && countQuery.length > 0) {
+          // Try multiple properties that might contain the count
+          const row = countQuery[0];
+          if (row.count !== undefined) count = Number(row.count);
+          else if (row.case_count !== undefined) count = Number(row.case_count);
+          else if (row['count(*)'] !== undefined) count = Number(row['count(*)']);
+          else {
+            // If we can't find a specific property, look for any property that might be the count
+            const keys = Object.keys(row);
+            if (keys.length > 0) {
+              count = Number(row[keys[0]]);
+            }
+          }
+        }
         
         console.log('Count result:', count);
         
