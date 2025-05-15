@@ -1638,6 +1638,9 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
             case "ARBITRATOR_RANKING":
               queryType = QUERY_TYPES.ARBITRATOR_RANKING;
               break;
+            case "TIME_BASED_ANALYSIS":
+              queryType = QUERY_TYPES.TIME_BASED_ANALYSIS;
+              break;
             case "COMPLEX_ANALYSIS":
               queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
               break;
@@ -1652,7 +1655,14 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
               respondentName: aiAnalysis.respondentName || null,
               disposition: aiAnalysis.disposition || null,
               caseType: aiAnalysis.caseType || null,
+              year: null, // Will be extracted from timeframe if present
+              timeframe: aiAnalysis.timeframe || null,
             };
+            
+            // If we have a timeframe that looks like a year, also set the year parameter
+            if (aiAnalysis.timeframe && /^\d{4}$/.test(aiAnalysis.timeframe)) {
+              parameters.year = aiAnalysis.timeframe;
+            }
             
             console.log("Using AI analysis with standard query type:", queryType);
             const result = await executeQueryByType(queryType, parameters);

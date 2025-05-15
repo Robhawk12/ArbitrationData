@@ -52,6 +52,7 @@ Identify the intent and extract relevant entities from the query. Possible inten
 - RESPONDENT_OUTCOME_ANALYSIS: Query about outcomes of cases involving a specific respondent
 - COMBINED_OUTCOME_ANALYSIS: Query about outcomes of cases with both a specific arbitrator and respondent
 - ARBITRATOR_RANKING: Query comparing multiple arbitrators or asking about top arbitrators (e.g., "Which arbitrators award the most?")
+- TIME_BASED_ANALYSIS: Query about cases in a specific time period or year (e.g., "How many cases were awarded in 2020?")
 - COMPLEX_ANALYSIS: Query requiring complex analysis beyond simple database queries
 - UNKNOWN: Query that doesn't fall into any of the above categories
 
