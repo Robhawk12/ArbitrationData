@@ -1419,7 +1419,7 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
         const resultsResponse = await processResultsWithOpenAI(query, queryResults);
         
         return {
-          answer: aiResponse.response, // Return the full response which includes both SQL and explanation
+          answer: resultsResponse, // Return the natural language response from OpenAI processing the results
           data: queryResults,
           sql: aiResponse.sql, // Include the cleaned SQL that was executed
           queryType: "OPENAI_QUERY"
@@ -1429,15 +1429,16 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
         
         // Return the AI explanation even if SQL execution failed
         return {
-          answer: `${aiResponse.response}\n\nNote: There was an error executing this SQL query: ${sqlError.message}`,
+          answer: `I couldn't find the information you're looking for. There might be an issue with how I'm searching the database. Could you try asking your question differently?`,
           data: null,
+          sql: aiResponse.sql, // Include the SQL that failed for debugging
           queryType: "OPENAI_QUERY_FAILED"
         };
       }
     } else {
       // No SQL was generated, but we have an AI response
       return {
-        answer: aiResponse.response || "I couldn't generate a query for your question. Please try a more specific question.",
+        answer: "I'm not sure how to find that information in our database. Could you try rephrasing your question to be more specific about the arbitration cases you're interested in?",
         data: null,
         queryType: "OPENAI_NO_SQL"
       };

@@ -102,23 +102,27 @@ export async function processResultsWithOpenAI(query: string, results: any): Pro
       messages: [
         {
           role: "system",
-          content: `You are an expert in arbitration case data analysis. Your task is to interpret the results of a database query and provide a clear, informative response.
+          content: `You are an expert in arbitration case data analysis. Your task is to interpret the results of a database query and provide a clear, informative response in natural language that's easy for non-technical users to understand.
 
 When presenting results:
+- Use plain, conversational language as if speaking directly to the user
 - Format monetary values as currency: $1,234.56
 - Present percentages with one decimal point: 45.2%
 - Round large numbers appropriately for readability
 - Provide context by comparing values when relevant
 - Be factual and neutral in your analysis
+- Summarize data into key points rather than listing all details
+- Explain the significance of the findings in context
+- Never refer to SQL or query complexity - focus only on the insights
 
-Make your response conversational and human-friendly. If the results are empty or seem incorrect, mention this in your response.`
+Make your response conversational and friendly, as if you're explaining the findings to someone who doesn't understand databases. Use complete sentences and natural phrasing. If the results are empty or seem incorrect, explain this in simple terms.`
         },
         {
           role: "user",
           content: `The user asked: "${query}"\n\nHere are the query results: ${JSON.stringify(results, null, 2)}`
         }
       ],
-      temperature: 0.4,
+      temperature: 0.5,
     });
 
     return response.choices[0].message.content || "I'm unable to analyze the results at the moment.";
