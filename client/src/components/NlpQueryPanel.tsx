@@ -7,12 +7,13 @@ interface NlpQueryPanelProps {
 export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
+  // Keep these state variables for debugging but don't display them in the UI
   const [executedSql, setExecutedSql] = useState<string | null>(null);
   const [queryResults, setQueryResults] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [usingAI, setUsingAI] = useState(false);
+  const [usingAI, setUsingAI] = useState(true); // Always using AI now
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,43 +195,23 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
       {answer && !error && (
         <div className="bg-[#e8f4ee] border border-[#b8dbca] p-4 rounded mt-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-medium text-[#217346]">Response:</h3>
-            {usingAI && (
-              <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                OpenAI
-              </div>
-            )}
+            <h3 className="font-medium text-[#217346]">Analysis:</h3>
+            <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI-Powered
+            </div>
           </div>
           
           <div className="prose prose-sm max-w-none">
             <div 
               className="text-neutral-700" 
               dangerouslySetInnerHTML={{ 
-                __html: answer.replace(/SQL:/g, '<h4 class="text-[#217346] mt-3 font-medium">SQL:</h4>')
-                  .replace(/Explanation:/g, '<h4 class="text-[#217346] mt-3 font-medium">Explanation:</h4>')
-                  .replace(/\n/g, '<br/>')
+                __html: answer.replace(/\n/g, '<br/>')
               }} 
             />
           </div>
-          
-          {executedSql && (
-            <div className="mt-4 border-t border-[#b8dbca] pt-4">
-              <h4 className="font-medium text-[#217346] mb-2">Executed SQL:</h4>
-              <pre className="bg-gray-800 text-white p-3 rounded text-sm overflow-x-auto">{executedSql}</pre>
-            </div>
-          )}
-          
-          {queryResults && (
-            <div className="mt-4 border-t border-[#b8dbca] pt-4">
-              <h4 className="font-medium text-[#217346] mb-2">Query Results:</h4>
-              <div className="bg-white border border-gray-200 rounded p-2 overflow-x-auto">
-                <pre className="text-xs text-gray-800">{JSON.stringify(queryResults, null, 2)}</pre>
-              </div>
-            </div>
-          )}
         </div>
       )}
       
