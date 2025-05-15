@@ -72,16 +72,28 @@ export default function ArbitratorVisualizations() {
   
   // Fetch arbitrator rankings by case count
   const casesUrl = `/api/arbitrator-rankings/cases${buildQueryParams()}`;
-  const { data: rankingsByCases, isLoading: isLoadingRankings } = useQuery({
+  const { 
+    data: rankingsByCases, 
+    isLoading: isLoadingRankings,
+    error: rankingsError
+  } = useQuery({
     queryKey: ['/api/arbitrator-rankings/cases', selectedCaseType, startDate, endDate],
     queryFn: () => apiRequest<ArbitratorRanking[]>(casesUrl),
+    retry: 3,
+    retryDelay: 1000,
   });
   
   // Fetch arbitrator rankings by award amounts
   const awardsUrl = `/api/arbitrator-rankings/awards${buildQueryParams()}`;
-  const { data: rankingsByAwards, isLoading: isLoadingAwards } = useQuery({
+  const { 
+    data: rankingsByAwards, 
+    isLoading: isLoadingAwards,
+    error: awardsError
+  } = useQuery({
     queryKey: ['/api/arbitrator-rankings/awards', selectedCaseType, startDate, endDate],
     queryFn: () => apiRequest<ArbitratorAwardRanking[]>(awardsUrl),
+    retry: 3,
+    retryDelay: 1000,
   });
   
   // Colors for charts
@@ -257,13 +269,28 @@ export default function ArbitratorVisualizations() {
             <CardTitle>Most Awarded Cases by Arbitrator</CardTitle>
             <CardDescription>
               Arbitrators ranked by number of awarded cases handled
-              {selectedCaseType && ` (${selectedCaseType} cases)`}
+              {selectedCaseType !== 'all' && ` (${selectedCaseType} cases)`}
+              {(startDate || endDate) && (
+                <span className="block mt-1 text-xs italic">
+                  {startDate && `From: ${format(startDate, "MM/dd/yyyy")}`}
+                  {startDate && endDate && ' — '}
+                  {endDate && `To: ${format(endDate, "MM/dd/yyyy")}`}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingRankings ? (
               <div className="h-80 flex items-center justify-center">
                 <p>Loading data...</p>
+              </div>
+            ) : rankingsError ? (
+              <div className="h-80 flex items-center justify-center flex-col gap-2">
+                <p className="text-destructive">Error loading data</p>
+                <p className="text-muted-foreground text-sm">{String(rankingsError)}</p>
+                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
               </div>
             ) : caseRankingData.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
@@ -297,7 +324,7 @@ export default function ArbitratorVisualizations() {
               </ResponsiveContainer>
             ) : (
               <div className="h-80 flex items-center justify-center">
-                <p>No data available</p>
+                <p>No data available for the selected filters</p>
               </div>
             )}
           </CardContent>
@@ -309,13 +336,28 @@ export default function ArbitratorVisualizations() {
             <CardTitle>Most Awarded Cases by Amount</CardTitle>
             <CardDescription>
               Arbitrators ranked by average award amount in awarded cases
-              {selectedCaseType && ` (${selectedCaseType} cases)`}
+              {selectedCaseType !== 'all' && ` (${selectedCaseType} cases)`}
+              {(startDate || endDate) && (
+                <span className="block mt-1 text-xs italic">
+                  {startDate && `From: ${format(startDate, "MM/dd/yyyy")}`}
+                  {startDate && endDate && ' — '}
+                  {endDate && `To: ${format(endDate, "MM/dd/yyyy")}`}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingAwards ? (
               <div className="h-80 flex items-center justify-center">
                 <p>Loading data...</p>
+              </div>
+            ) : awardsError ? (
+              <div className="h-80 flex items-center justify-center flex-col gap-2">
+                <p className="text-destructive">Error loading data</p>
+                <p className="text-muted-foreground text-sm">{String(awardsError)}</p>
+                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
               </div>
             ) : awardRankingData.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
@@ -360,7 +402,7 @@ export default function ArbitratorVisualizations() {
               </ResponsiveContainer>
             ) : (
               <div className="h-80 flex items-center justify-center">
-                <p>No data available</p>
+                <p>No data available for the selected filters</p>
               </div>
             )}
           </CardContent>
