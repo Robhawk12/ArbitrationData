@@ -55,7 +55,9 @@ column (ie. "How many cases has Smith handled?").
 
 If the user asks for a category that is not in the list, infer based on the schema above.
 
-First, write the SQL query that would answer the question, then provide a detailed explanation of the results that would be produced by this query. Format your response in two sections labeled "SQL:" and "Explanation:".`
+First, write the SQL query that would answer the question, then provide a detailed explanation of the results that would be produced by this query. Format your response in two sections labeled "SQL:" and "Explanation:".
+
+IMPORTANT NOTE: When providing SQL, do NOT use markdown code blocks or backticks. Present the raw SQL directly after the "SQL:" label. The exact SQL will be executed against the database, so it must be valid PostgreSQL syntax.`
         },
         {
           role: "user",
@@ -69,7 +71,10 @@ First, write the SQL query that would answer the question, then provide a detail
     
     // Extract SQL and explanation from the response
     const sqlMatch = content.match(/SQL:(.*?)(?=Explanation:|$)/s);
-    const sql = sqlMatch ? sqlMatch[1].trim() : "";
+    let sql = sqlMatch ? sqlMatch[1].trim() : "";
+    
+    // Clean the SQL by removing markdown code blocks (```sql) and backticks
+    sql = sql.replace(/```sql\s*/g, '').replace(/```\s*$/g, '').trim();
     
     return {
       response: content,
