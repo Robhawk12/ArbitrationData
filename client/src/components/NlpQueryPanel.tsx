@@ -107,14 +107,12 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
               Complex questions that don't fit standard patterns will be analyzed with AI:
             </p>
             <ul className="list-disc pl-5 mb-3 space-y-1 text-neutral-700">
-              <li>Compare data across multiple arbitrators or companies</li>
+              
               <li>Ask about trends or patterns in the data</li>
               <li>Request specialized calculations not available in standard queries</li>
               <li>Questions requiring deeper understanding of legal context</li>
             </ul>
-            <p className="text-neutral-600">
-              AI-enhanced answers will display an "AI Enhanced" badge.
-            </p>
+            
           </div>
         )}
       </div>
@@ -223,13 +221,7 @@ export default function NlpQueryPanel({ className = "" }: NlpQueryPanelProps) {
             <p className="font-medium text-sm text-neutral-700">Respondent Analysis</p>
             <p className="text-xs text-neutral-600">"What are the outcomes for [company] as respondent?"</p>
           </div>
-          <div className="bg-gray-50 p-2 rounded md:col-span-2 border border-blue-100">
-            <div className="flex items-center">
-              <p className="font-medium text-sm text-blue-700">AI-Enhanced Queries</p>
-              <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Powered by AI</span>
-            </div>
-            <p className="text-xs text-blue-600">"Compare win rates between arbitrators Smith and Johnson" or "What's the trend in award amounts since 2018?"</p>
-          </div>
+         
         </div>
       </div>
     </div>
