@@ -1483,6 +1483,7 @@ async function executeQueryByType(
           // Extract year from filing_date for comparison
           yearCondition = `EXTRACT(YEAR FROM filing_date) = ${year}`;
           timeframeDisplay = `in ${year}`;
+          console.log(`Year condition: ${yearCondition}`);
         } else if (timeframe === 'last year') {
           const lastYear = new Date().getFullYear() - 1;
           yearCondition = `EXTRACT(YEAR FROM filing_date) = ${lastYear}`;
@@ -1531,6 +1532,8 @@ async function executeQueryByType(
         }
         
         // Build the query
+        console.log(`Executing time-based query with condition: ${yearCondition} and disposition: ${dispositionCondition || 'any'}`);
+        
         const queryResult = await db.execute(sql.raw(`
           SELECT COUNT(*) as case_count 
           FROM arbitration_cases 
@@ -1539,14 +1542,20 @@ async function executeQueryByType(
           AND duplicate_of IS NULL
         `));
         
-        if (!queryResult || !queryResult[0]) {
+        console.log('Query result:', queryResult);
+        
+        if (!queryResult || !queryResult.length || !queryResult[0]) {
           return {
             data: { count: 0 },
-            message: `No data found for ${timeframeDisplay}.`
+            message: `No data found for cases ${dispositionDisplay} ${timeframeDisplay}.`
           };
         }
         
-        const count = Number(queryResult[0].case_count || 0);
+        // Extract the count from the result - format may be queryResult[0].case_count or queryResult[0].count
+        const resultRow = queryResult[0];
+        const count = Number(resultRow.case_count || resultRow.count || 0);
+        
+        console.log('Count result:', count);
         
         return {
           data: { 
