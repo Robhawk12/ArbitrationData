@@ -4,18 +4,13 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
- * Analyze a natural language query using OpenAI to determine intent and required parameters
- * @param query The natural language query to analyze
- * @returns Structured analysis of the query
+ * Process a natural language query directly with OpenAI
+ * @param query The natural language query from the user
+ * @returns Generated SQL query and direct response
  */
-export async function analyzeQueryWithAI(query: string): Promise<{
-  intent: string;
-  arbitratorName: string | null;
-  respondentName: string | null;
-  disposition: string | null;
-  caseType: string | null;
-  timeframe: string | null;
-  confidence: number;
+export async function processQueryWithOpenAI(query: string): Promise<{
+  response: string;
+  sql: string;
 }> {
   try {
     const response = await openai.chat.completions.create({
@@ -23,9 +18,9 @@ export async function analyzeQueryWithAI(query: string): Promise<{
       messages: [
         {
           role: "system",
-          content: `You are an expert in analyzing arbitration case data. Your task is to analyze a user query and extract relevant components.
-          
-Schema for arbitration_cases:
+          content: `You are a SQL (postgres) and data visualization expert. Your job is to help the user write a SQL query to retrieve the data they need. The table schema is as follows:
+
+arbitration_cases(
   id SERIAL PRIMARY KEY,
   case_id TEXT UNIQUE NOT NULL,
   forum TEXT NOT NULL,
@@ -36,194 +31,94 @@ Schema for arbitration_cases:
   disposition TEXT,
   claim_amount TEXT,
   award_amount TEXT,
-  case_type TEXT,
   source_file TEXT NOT NULL,
-  processing_date TIMESTAMP,
-  has_discrepancies BOOLEAN,
+  processing_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  has_discrepancies BOOLEAN NOT NULL DEFAULT false,
   duplicate_of TEXT,
-  raw_data TEXT
+  raw_data TEXT,
+  case_type TEXT
+);
 
-Identify the intent and extract relevant entities from the query. Possible intents include:
-- ARBITRATOR_CASE_COUNT: Query about how many cases an arbitrator has handled
-- ARBITRATOR_OUTCOME_ANALYSIS: Query about outcomes of cases handled by an arbitrator
-- ARBITRATOR_AVERAGE_AWARD: Query about average award amounts for an arbitrator
-- ARBITRATOR_CASE_LISTING: Query asking to list cases handled by an arbitrator
-- RESPONDENT_CASE_COUNT: Query about how many cases involve a specific respondent
-- RESPONDENT_OUTCOME_ANALYSIS: Query about outcomes of cases involving a specific respondent
-- COMBINED_OUTCOME_ANALYSIS: Query about outcomes of cases with both a specific arbitrator and respondent
-- ARBITRATOR_RANKING: Query comparing multiple arbitrators or asking about top arbitrators (e.g., "Which arbitrators award the most?")
-- COMPLEX_ANALYSIS: Query requiring complex analysis beyond simple database queries
-- UNKNOWN: Query that doesn't fall into any of the above categories
+Only retrieval queries are allowed.
 
-When extracting names, handle variations (Hon., Dr., etc.) and standardize to improve matching.
-Provide a confidence score (0-1) indicating your certainty of the analysis.
+For things like arbitrator, respondent, attorney and other string fields, use the ILIKE operator and
+convert both the search term and the field to lowercase using LOWER() function. For example:
+LOWER(arbitrator_name) ILIKE LOWER('%search_term%').
 
-Return your response as a JSON object with the following structure:
-{
-  "intent": "INTENT_TYPE",
-  "arbitratorName": "Name or null",
-  "respondentName": "Name or null",
-  "disposition": "Type or null",
-  "caseType": "Type or null",
-  "timeframe": "Period or null",
-  "confidence": 0.8
-}`
+Note: Trim whitespace to ensure you're grouping properly. Note, some fields may be null or
+have only one value. Ignore suffixes in arbitrators and attorneys. There may be multiple
+attorneys in consumer_attorney when searching ie. "how many cases did Thomas Fowler
+represent the consumer?" The search name may be the second or third name in the field
+separated by commas. Treat companies with Coinbase in it as the same company/respondent.
+When answering questions about a specific field, ensure you are selecting the identifying
+column (ie. "How many cases has Smith handled?").
+
+If the user asks for a category that is not in the list, infer based on the schema above.
+
+First, write the SQL query that would answer the question, then provide a detailed explanation of the results that would be produced by this query. Format your response in two sections labeled "SQL:" and "Explanation:".`
         },
         {
           role: "user",
           content: query
         }
       ],
-      response_format: { type: "json_object" },
       temperature: 0.3,
     });
 
-    // Handle null content by providing a default empty object
-    const content = response.choices[0].message.content as string || "{}";
-    const result = JSON.parse(content);
+    const content = response.choices[0].message.content || "";
+    
+    // Extract SQL and explanation from the response
+    const sqlMatch = content.match(/SQL:(.*?)(?=Explanation:|$)/s);
+    const sql = sqlMatch ? sqlMatch[1].trim() : "";
     
     return {
-      intent: result.intent || "UNKNOWN",
-      arbitratorName: result.arbitratorName || null,
-      respondentName: result.respondentName || null,
-      disposition: result.disposition || null,
-      caseType: result.caseType || null,
-      timeframe: result.timeframe || null,
-      confidence: result.confidence || 0.5,
+      response: content,
+      sql: sql
     };
   } catch (error) {
-    console.error("Error analyzing query with AI:", error);
+    console.error("Error processing query with OpenAI:", error);
     return {
-      intent: "UNKNOWN",
-      arbitratorName: null,
-      respondentName: null,
-      disposition: null,
-      caseType: null,
-      timeframe: null,
-      confidence: 0
+      response: "I encountered an error while processing your query. Please try again.",
+      sql: ""
     };
   }
 }
 
 /**
- * Generate a response to a complex query that can't be easily answered with predefined query types
+ * Process results from a SQL query to generate a human-friendly response
  * @param query The original user query
- * @param data Relevant data from the database to inform the response
- * @returns AI-generated natural language response
+ * @param results The SQL query results
+ * @returns Human-readable analysis of the query results
  */
-export async function generateComplexQueryResponse(
-  query: string,
-  data: any
-): Promise<string> {
+export async function processResultsWithOpenAI(query: string, results: any): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `You are an expert in arbitration case data analysis. You are responding to a user query about arbitration cases.
-          
-Your job is to provide a clear, concise, and accurate response to the user's query based on the provided data.
-Focus on answering exactly what was asked, and be specific about numeric results (counts, percentages, averages).
-If specific data is missing or unavailable, acknowledge this limitation in your response.
+          content: `You are an expert in arbitration case data analysis. Your task is to interpret the results of a database query and provide a clear, informative response.
 
-When presenting metrics:
+When presenting results:
 - Format monetary values as currency: $1,234.56
 - Present percentages with one decimal point: 45.2%
 - Round large numbers appropriately for readability
 - Provide context by comparing values when relevant
+- Be factual and neutral in your analysis
 
-Be factual and neutral in your analysis. Do not make assumptions beyond what the data directly supports.`
+Make your response conversational and human-friendly. If the results are empty or seem incorrect, mention this in your response.`
         },
         {
           role: "user",
-          content: `Query: ${query}\n\nAvailable data: ${JSON.stringify(data, null, 2)}`
+          content: `The user asked: "${query}"\n\nHere are the query results: ${JSON.stringify(results, null, 2)}`
         }
       ],
       temperature: 0.4,
     });
 
-    return response.choices[0].message.content || "I'm unable to analyze this query at the moment.";
+    return response.choices[0].message.content || "I'm unable to analyze the results at the moment.";
   } catch (error) {
-    console.error("Error generating complex query response:", error);
-    return "I encountered an error while analyzing this query. Please try again with a different question.";
-  }
-}
-
-/**
- * Generate SQL for a complex query that doesn't fit the standard query types
- * @param query The user's natural language query
- * @returns SQL query to retrieve the relevant data
- */
-export async function generateSQLForQuery(query: string): Promise<{
-  sql: string;
-  explanation: string;
-}> {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert SQL developer specializing in PostgreSQL. Your task is to generate SQL for querying arbitration case data.
-          
-Schema for arbitration_cases:
-  id SERIAL PRIMARY KEY,
-  case_id TEXT UNIQUE NOT NULL,
-  forum TEXT NOT NULL,
-  arbitrator_name TEXT,
-  respondent_name TEXT,
-  consumer_attorney TEXT,
-  filing_date TIMESTAMP,
-  disposition TEXT,
-  claim_amount TEXT,
-  award_amount TEXT,
-  case_type TEXT,
-  source_file TEXT NOT NULL,
-  processing_date TIMESTAMP,
-  has_discrepancies BOOLEAN,
-  duplicate_of TEXT,
-  raw_data TEXT
-
-Notes on data:
-- For string fields like arbitrator_name and respondent_name, use LOWER() and ILIKE for case-insensitive partial matching
-- Always trim whitespace when grouping by string fields
-- Handle NULL values appropriately in aggregations
-- Some text fields like claim_amount and award_amount may contain monetary values with currency symbols
-- For name matching, consider variations in formatting (with/without middle initials)
-
-Generate valid PostgreSQL that answers the user's query. 
-For string matching, prefer LOWER(field) ILIKE LOWER('%term%') pattern.
-Only write SELECT queries - no INSERT, UPDATE, or DELETE operations.
-
-Return your response as a JSON object with this structure:
-{
-  "sql": "Your SQL query here",
-  "explanation": "Brief explanation of what the query does"
-}`
-        },
-        {
-          role: "user",
-          content: query
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2,
-    });
-
-    // Handle null content by providing a default empty object
-    const content = response.choices[0].message.content as string || "{}";
-    const result = JSON.parse(content);
-    
-    return {
-      sql: result.sql || "",
-      explanation: result.explanation || "No explanation provided"
-    };
-  } catch (error) {
-    console.error("Error generating SQL for query:", error);
-    return {
-      sql: "",
-      explanation: "Failed to generate SQL for this query"
-    };
+    console.error("Error processing results with OpenAI:", error);
+    return "I encountered an error while analyzing the results. Please try again.";
   }
 }

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { arbitrationCases } from "../shared/schema";
-import { analyzeQueryWithAI, generateComplexQueryResponse, generateSQLForQuery } from "./openai";
+import { processQueryWithOpenAI, processResultsWithOpenAI } from "./openai";
 
 /**
  * Parses a name into its components for advanced matching
@@ -1393,7 +1393,7 @@ async function executeQueryByType(
 }
 
 /**
- * Process a natural language query about arbitration data
+ * Process a natural language query about arbitration data exclusively using OpenAI
  * @param query The natural language query from the user
  */
 export async function processNaturalLanguageQuery(query: string): Promise<{
@@ -1402,144 +1402,60 @@ export async function processNaturalLanguageQuery(query: string): Promise<{
   queryType: string;
 }> {
   try {
-    console.log("Processing natural language query:", query);
+    console.log("Processing natural language query with OpenAI:", query);
     
-    // First, try our structured pattern matching
-    const patternAnalysis = await analyzeQuery(query);
+    // Use OpenAI to generate SQL and explanation
+    const aiResponse = await processQueryWithOpenAI(query);
+    console.log("OpenAI response received");
     
-    // If we couldn't categorize the query or its type is unknown, try AI-powered analysis
-    if (patternAnalysis.type === QUERY_TYPES.UNKNOWN) {
-      console.log("Standard pattern analysis failed, trying AI analysis");
-      
+    // If we got a SQL query back, execute it
+    if (aiResponse.sql) {
       try {
-        // Use OpenAI to analyze the query
-        const aiAnalysis = await analyzeQueryWithAI(query);
-        console.log("AI query analysis result:", aiAnalysis);
+        console.log("Executing OpenAI-generated SQL:", aiResponse.sql);
+        const queryResults = await db.execute(sql.raw(aiResponse.sql));
         
-        // If AI analysis is confident (threshold of 0.7), use its results
-        if (aiAnalysis.confidence >= 0.7) {
-          // Map the AI intent to our query types
-          let queryType = QUERY_TYPES.UNKNOWN;
-          
-          // Convert AI intent to our query type format if possible
-          switch (aiAnalysis.intent.toUpperCase()) {
-            case "ARBITRATOR_CASE_COUNT":
-              queryType = QUERY_TYPES.ARBITRATOR_CASE_COUNT;
-              break;
-            case "ARBITRATOR_OUTCOME_ANALYSIS":
-              queryType = QUERY_TYPES.ARBITRATOR_OUTCOME_ANALYSIS;
-              break;
-            case "ARBITRATOR_AVERAGE_AWARD":
-              queryType = QUERY_TYPES.ARBITRATOR_AVERAGE_AWARD;
-              break;
-            case "ARBITRATOR_CASE_LISTING":
-              queryType = QUERY_TYPES.ARBITRATOR_CASE_LISTING;
-              break;
-            case "RESPONDENT_CASE_COUNT":
-              queryType = QUERY_TYPES.RESPONDENT_CASE_COUNT;
-              break;
-            case "RESPONDENT_OUTCOME_ANALYSIS":
-              queryType = QUERY_TYPES.RESPONDENT_OUTCOME_ANALYSIS;
-              break;
-            case "COMBINED_OUTCOME_ANALYSIS":
-              queryType = QUERY_TYPES.COMBINED_OUTCOME_ANALYSIS;
-              break;
-            case "ARBITRATOR_RANKING":
-              queryType = QUERY_TYPES.ARBITRATOR_RANKING;
-              break;
-            case "COMPLEX_ANALYSIS":
-              queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
-              break;
-            default:
-              queryType = QUERY_TYPES.COMPLEX_ANALYSIS;
-          }
-          
-          // If we identified a standard query type, use our existing infrastructure
-          if (queryType !== QUERY_TYPES.COMPLEX_ANALYSIS) {
-            const parameters: Record<string, string | null> = {
-              arbitratorName: aiAnalysis.arbitratorName || null,
-              respondentName: aiAnalysis.respondentName || null,
-              disposition: aiAnalysis.disposition || null,
-              caseType: aiAnalysis.caseType || null,
-            };
-            
-            console.log("Using AI analysis with standard query type:", queryType);
-            const result = await executeQueryByType(queryType, parameters);
-            
-            return {
-              answer: result.message,
-              data: result.data,
-              queryType,
-            };
-          } else {
-            // This is a complex query that requires custom SQL or processing
-            console.log("Using AI for complex query analysis");
-            
-            try {
-              // Generate SQL for the query
-              const sqlGen = await generateSQLForQuery(query);
-              console.log("Generated SQL:", sqlGen.sql);
-              
-              // If SQL was successfully generated, execute it
-              if (sqlGen.sql) {
-                const queryResults = await db.execute(sql.raw(sqlGen.sql));
-                
-                // Use AI to generate a natural language response based on the results
-                const aiResponse = await generateComplexQueryResponse(query, queryResults);
-                
-                return {
-                  answer: aiResponse,
-                  data: queryResults,
-                  queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
-                };
-              }
-              
-              return {
-                answer: "I couldn't generate a query for your question. Please try a more specific question.",
-                data: null,
-                queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
-              };
-            } catch (sqlError: any) {
-              console.error("Error executing AI-generated SQL:", sqlError);
-              
-              // Fallback to a generic AI response when SQL execution fails
-              return {
-                answer: "I understood your question but couldn't retrieve the data. Please try a different question.",
-                data: null,
-                queryType: QUERY_TYPES.COMPLEX_ANALYSIS,
-              };
-            }
-          }
-        }
-      } catch (aiError: any) {
-        console.error("AI analysis failed, falling back to standard patterns:", aiError.message);
+        // Process results with OpenAI to get a human-friendly response
+        const resultsResponse = await processResultsWithOpenAI(query, queryResults);
         
-        // If it's a rate limit error, provide a more specific message
-        if (aiError.status === 429 || (aiError.error && aiError.error.type === 'insufficient_quota')) {
-          return {
-            answer: "I understood your complex question, but our AI service is currently unavailable. Please try a standard query format or try again later.",
-            data: null,
-            queryType: QUERY_TYPES.UNKNOWN
-          };
-        }
+        return {
+          answer: aiResponse.response, // Return the full response which includes both SQL and explanation
+          data: queryResults,
+          queryType: "OPENAI_QUERY"
+        };
+      } catch (sqlError: any) {
+        console.error("Error executing OpenAI-generated SQL:", sqlError);
+        
+        // Return the AI explanation even if SQL execution failed
+        return {
+          answer: `${aiResponse.response}\n\nNote: There was an error executing this SQL query: ${sqlError.message}`,
+          data: null,
+          queryType: "OPENAI_QUERY_FAILED"
+        };
       }
+    } else {
+      // No SQL was generated, but we have an AI response
+      return {
+        answer: aiResponse.response || "I couldn't generate a query for your question. Please try a more specific question.",
+        data: null,
+        queryType: "OPENAI_NO_SQL"
+      };
+    }
+  } catch (error: any) {
+    console.error("Error processing natural language query with OpenAI:", error);
+    
+    // Handle rate limit or quota errors specifically
+    if (error.status === 429 || (error.error && error.error.type === 'insufficient_quota')) {
+      return {
+        answer: "I'm sorry, our AI service is currently unavailable. Please try again later.",
+        data: null,
+        queryType: "OPENAI_ERROR"
+      };
     }
     
-    // If we get here, use the original pattern matching results
-    console.log("Using standard pattern analysis");
-    const result = await executeQueryByType(patternAnalysis.type, patternAnalysis.parameters);
-    
-    return {
-      answer: result.message,
-      data: result.data,
-      queryType: patternAnalysis.type,
-    };
-  } catch (error: any) {
-    console.error("Error processing natural language query:", error);
     return {
       answer: "Sorry, I encountered an error while processing your question. Please try again.",
       data: null,
-      queryType: QUERY_TYPES.UNKNOWN,
+      queryType: "OPENAI_ERROR"
     };
   }
 }
