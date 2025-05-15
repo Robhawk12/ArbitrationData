@@ -1639,13 +1639,8 @@ async function executeQueryByType(
         
       case QUERY_TYPES.TIME_BASED_ANALYSIS: {
         // Use our dedicated function for time-based analysis
-        const { executeTimeBasedAnalysis } = await import('./time_based_query');
         return await executeTimeBasedAnalysis(year, timeframe, disposition, caseType, query);
-      }
-      
-      // Old unreachable code removed
-      /*
-      if (!year && !timeframe) {
+        if (!year && !timeframe) {
           return { 
             data: null, 
             message: "No timeframe specified in the query. Please include a specific year or time period." 
