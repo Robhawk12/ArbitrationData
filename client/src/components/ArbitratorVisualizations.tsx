@@ -109,16 +109,50 @@ export default function ArbitratorVisualizations() {
     }).format(value);
   };
   
-  // Format arbitrator name (keep it short for display)
+  // Format arbitrator name (first initial, middle initial if available, last name, no Esq.)
   const formatArbitratorName = (name: string) => {
     if (!name) return "";
     
-    // Split the name and get the last part (likely the last name)
-    const parts = name.split(' ');
-    if (parts.length <= 2) return name;
+    // Remove common suffixes and prefixes
+    const cleanName = name
+      // Remove suffix Esq
+      .replace(/,?\s+Esq\.?$/i, '')
+      // Remove suffix Jr, Sr, I, II, III, IV, etc.
+      .replace(/,?\s+(Jr\.?|Sr\.?|I{1,3}|IV|V)$/i, '')
+      // Remove prefixes like Hon., Dr., Judge, Justice, etc.
+      .replace(/^(Hon\.|Dr\.|Judge|Justice|Mr\.|Mrs\.|Ms\.|Prof\.)\s+/i, '')
+      .trim();
     
-    // For longer names, show first initial + last name
-    return `${parts[0][0]}. ${parts[parts.length - 1]}`;
+    // Split the name into parts
+    const parts = cleanName.split(' ').filter(part => part && part.trim() !== '');
+    
+    // Handle simple cases
+    if (parts.length === 0) return name;
+    if (parts.length === 1) return cleanName;
+    
+    // Get the last name (last part)
+    const lastName = parts[parts.length - 1];
+    
+    // Get first initial - check if already just an initial like "J."
+    const firstPart = parts[0];
+    const firstInitial = firstPart.length === 1 || (firstPart.length === 2 && firstPart.endsWith('.')) 
+      ? firstPart
+      : firstPart[0] + '.';
+    
+    // Process remaining parts for middle initial(s)
+    if (parts.length >= 3) {
+      // Get middle part to use as middle initial
+      const middlePart = parts[1];
+      // Check if middle part is already an initial
+      const middleInitial = middlePart.length === 1 || (middlePart.length === 2 && middlePart.endsWith('.'))
+        ? middlePart
+        : middlePart[0] + '.';
+      
+      return `${firstInitial} ${middleInitial} ${lastName}`;
+    }
+    
+    // Just first initial and last name
+    return `${firstInitial} ${lastName}`;
   };
   
   // Prepare data for display - make sure we filter out nulls and NA values as requested
